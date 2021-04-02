@@ -4,9 +4,8 @@
 namespace libasync\database;
 
 
-use libasync\Promise;
+use libasync\IPromise;
 use libasync\PromiseAsyncTask;
-use pocketmine\Server;
 use Threaded;
 
 class MySQLConn extends PromiseAsyncTask {
@@ -20,7 +19,7 @@ class MySQLConn extends PromiseAsyncTask {
 	 * @noinspection MagicMethodsValidityInspection
 	 * @noinspection PhpMissingParentConstructorInspection
 	 */
-	public function __construct(Promise $promise, ConnInfo $info) {
+	public function __construct(IPromise $promise, ConnInfo $info) {
 		$this->cal = $promise->getAsync();
 		$this->info = $info;
 		$this->storeLocal([$promise]);
@@ -41,15 +40,5 @@ class MySQLConn extends PromiseAsyncTask {
 			}
 		}
 		$conn->close();
-	}
-	
-	public function onCompletion(Server $server) : void {
-		/** @var Promise $promise */
-		[$promise] = $this->fetchLocal();
-		foreach ($promise->getResultConsumer() as $consumer) {
-			if ($consumer($this->ret)) {
-				break;
-			}
-		}
 	}
 }

@@ -6,26 +6,34 @@ namespace libasync;
 
 use Threaded;
 
-interface Promise {
-	/**
-	 * @warn callable which execute synchronized
-	 * @param callable() $cal
-	 */
-	public function with(callable $cal) : self;
+class Promise implements IPromise {
+	/** @var Threaded<callable> */
+	protected Threaded $async;
+	/** @var callable[] */
+	protected array $res = [];
 	
-	/**
-	 * @warn callable which execute in main thread
-	 * @param callable(mixed $ret) : bool $cal
-	 */
-	public function whenResult(callable $cal) : self;
+	public function __construct() {
+		$this->async = new Threaded();
+	}
+	
+	public function then(callable $cal) : self {
+		$this->async[] = $cal;
+		return $this;
+	}
+	
+	public function whenResult(callable $cal) : self {
+		$this->res[] = $cal;
+		return $this;
+	}
 	
 	/**
 	 * @return Threaded<callable() : bool>
 	 */
-	public function getAsync() : Threaded;
+	public function getAsync() : Threaded {
+		return $this->async;
+	}
 	
-	/**
-	 * @return callable[]
-	 */
-	public function getResultConsumer() : array;
+	public function getResultConsumer() : array {
+		return $this->res;
+	}
 }

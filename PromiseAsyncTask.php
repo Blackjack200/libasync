@@ -14,7 +14,7 @@ class PromiseAsyncTask extends AsyncTask {
 	/** @var mixed */
 	private $ret;
 	
-	public function __construct(Promise $promise) {
+	public function __construct(IPromise $promise) {
 		$this->cal = $promise->getAsync();
 		$this->storeLocal([$promise]);
 	}
@@ -28,17 +28,17 @@ class PromiseAsyncTask extends AsyncTask {
 		}
 	}
 	
-	public function onCompletion(Server $server) : void {
-		/** @var Promise $promise */
+	final public function onCompletion(Server $server) : void {
+		/** @var IPromise $promise */
 		[$promise] = $this->fetchLocal();
 		foreach ($promise->getResultConsumer() as $consumer) {
-			if ($consumer($this->ret)) {
+			if ($consumer($this->ret) === true) {
 				break;
 			}
 		}
 	}
 	
-	public function start() : void {
+	final public function start() : void {
 		Server::getInstance()->getAsyncPool()->submitTask($this);
 	}
 }
