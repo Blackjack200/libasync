@@ -8,20 +8,20 @@ use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
 use Threaded;
 
-class PromiseAsyncTask extends AsyncTask {
+abstract class PromiseAsyncTask extends AsyncTask {
 	//FFF
 	public const EXECUTE_DROP = -114514;
 	public const EXECUTE_CONTINUE = 114514;
-	/** @var Threaded<callable()> */
-	private Threaded $cal;
-	/** @var mixed */
-	private $ret;
-	
+	/** @var Threaded<callable> */
+	protected Threaded $cal;
+	/** @var mixed|null */
+	protected $ret;
+
 	public function __construct(IPromise $promise) {
-		$this->cal = $promise->getAsync();
+		$this->cal = $promise->getAsyncConsumer();
 		$this->storeLocal([$promise]);
 	}
-	
+
 	public function onRun() : void {
 		foreach ($this->cal as $value) {
 			$this->ret = $this->serializeData($value());
@@ -30,11 +30,11 @@ class PromiseAsyncTask extends AsyncTask {
 			}
 		}
 	}
-	
+
 	public function serializeData($val) : string {
 		return igbinary_serialize($val);
 	}
-	
+
 	final public function onCompletion(Server $server) : void {
 		/** @var IPromise $promise */
 		[$promise] = $this->fetchLocal();
@@ -45,11 +45,14 @@ class PromiseAsyncTask extends AsyncTask {
 			}
 		}
 	}
-	
-	public function deserializeData($val) {
+
+	/**
+	 * @return mixed|null
+	 */
+	public function deserializeData(string $val) {
 		return igbinary_unserialize($val);
 	}
-	
+
 	final public function start() : void {
 		Server::getInstance()->getAsyncPool()->submitTask($this);
 	}
