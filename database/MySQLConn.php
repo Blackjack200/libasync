@@ -6,6 +6,7 @@ namespace libasync\database;
 
 use libasync\IPromise;
 use libasync\PromiseAsyncTask;
+use mysqli_result;
 use Threaded;
 
 class MySQLConn extends PromiseAsyncTask {
@@ -40,5 +41,12 @@ class MySQLConn extends PromiseAsyncTask {
 			}
 		}
 		$conn->close();
+	}
+	
+	public function serializeData($val) : string {
+		if ($val instanceof mysqli_result) {
+			$val = $val->fetch_assoc();
+		}
+		return parent::serializeData($val);
 	}
 }
