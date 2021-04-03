@@ -46,7 +46,7 @@ class PromiseAsyncTask extends AsyncTask {
 		}
 	}
 	
-	public function deserializeData($val) : string {
+	public function deserializeData($val) {
 		return igbinary_unserialize($val);
 	}
 	
