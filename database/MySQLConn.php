@@ -34,7 +34,7 @@ class MySQLConn extends PromiseAsyncTask {
 			$this->info->getPort()
 		);
 		foreach ($this->cal as $value) {
-			$this->ret = $this->serializeData($value());
+			$this->ret = $this->serializeData($value($conn));
 			if ($this->ret === self::EXECUTE_DROP) {
 				break;
 			}
