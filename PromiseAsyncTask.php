@@ -42,7 +42,7 @@ class PromiseAsyncTask extends AsyncTask {
 		foreach ($promise->getResultConsumer() as $consumer) {
 			$consumer($data);
 			if ($promise->isRejected()) {
-				$promise->getRejectConsumer()($promise->getRejectContext());
+				$promise->getRejectConsumer()(...$promise->getRejectContext());
 				break;
 			}
 		}
