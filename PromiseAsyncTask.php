@@ -8,7 +8,7 @@ use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
 use Threaded;
 
-abstract class PromiseAsyncTask extends AsyncTask {
+class PromiseAsyncTask extends AsyncTask {
 	//FFF
 	public const EXECUTE_DROP = -114514;
 	public const EXECUTE_CONTINUE = 114514;
@@ -40,7 +40,9 @@ abstract class PromiseAsyncTask extends AsyncTask {
 		[$promise] = $this->fetchLocal();
 		$data = $this->deserializeData($this->ret);
 		foreach ($promise->getResultConsumer() as $consumer) {
-			if ($consumer($data) === self::EXECUTE_DROP) {
+			$consumer($data);
+			if ($promise->isRejected()) {
+				$promise->getRejectConsumer()($promise->getRejectContext());
 				break;
 			}
 		}
