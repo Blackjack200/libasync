@@ -6,6 +6,7 @@ namespace libasync\database;
 
 use libasync\IPromise;
 use libasync\PromiseAsyncTask;
+use mysqli;
 use mysqli_result;
 
 class MySQLiConn extends PromiseAsyncTask {
@@ -17,6 +18,7 @@ class MySQLiConn extends PromiseAsyncTask {
 	}
 
 	public function onRun() : void {
+		$i = 0;
 		$conn = mysqli_connect(
 			$this->info->host,
 			$this->info->username,
@@ -24,6 +26,15 @@ class MySQLiConn extends PromiseAsyncTask {
 			$this->info->dataBase,
 			$this->info->port
 		);
+		while ($i++ < $this->info->retry && !$conn instanceof mysqli) {
+			$conn = mysqli_connect(
+				$this->info->host,
+				$this->info->username,
+				$this->info->password,
+				$this->info->dataBase,
+				$this->info->port
+			);
+		}
 		foreach ($this->cal as $value) {
 			$this->ret = $this->serializeData($value($conn));
 			if ($this->ret === self::EXECUTE_DROP) {
