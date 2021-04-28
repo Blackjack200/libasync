@@ -34,6 +34,7 @@ class MySQLiConn extends PromiseAsyncTask {
 				$this->info->dataBase,
 				$this->info->port
 			);
+			usleep(20);
 		}
 		foreach ($this->cal as $value) {
 			$this->ret = $this->serializeData($value($conn));
