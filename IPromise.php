@@ -32,6 +32,10 @@ interface IPromise {
 	 */
 	public function reject(...$reason) : void;
 
+	public function start(...$args) : void;
+
+	public function bind(string $class) : self;
+
 	/**
 	 * @return Threaded<callable>
 	 */
