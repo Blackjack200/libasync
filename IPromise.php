@@ -30,7 +30,7 @@ interface IPromise {
 	 * @see IPromise::whenResult()
 	 * This method call in whenResult to break context
 	 */
-	public function reject(...$context) : void;
+	public function reject(...$reason) : void;
 
 	/**
 	 * @return Threaded<callable>
@@ -46,5 +46,5 @@ interface IPromise {
 
 	public function getRejectConsumer() : callable;
 
-	public function getRejectContext() : array;
+	public function getRejectReason() : array;
 }
