@@ -1,13 +1,11 @@
 <?php
 
-
 namespace libasync;
-
 
 use RuntimeException;
 use Threaded;
 
-class Promise implements IPromise {
+class Promise implements PromiseInterface {
 	/** @var Threaded<callable> */
 	protected Threaded $async;
 	/** @var callable[] */
@@ -37,7 +35,7 @@ class Promise implements IPromise {
 		return $this;
 	}
 
-	public function whenReject(callable $cal) : IPromise {
+	public function whenReject(callable $cal) : PromiseInterface {
 		$this->rejectConsumer = $cal;
 		return $this;
 	}

@@ -1,12 +1,12 @@
 <?php
 
-
 namespace libasync;
-
 
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
 use Threaded;
+use function igbinary_serialize;
+use function igbinary_unserialize;
 
 class PromiseAsyncTask extends AsyncTask {
 	//FFF
@@ -17,7 +17,7 @@ class PromiseAsyncTask extends AsyncTask {
 	/** @var mixed|null */
 	protected $ret;
 
-	public function __construct(IPromise $promise) {
+	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncConsumer();
 		$this->storeLocal([$promise]);
 	}
@@ -36,7 +36,7 @@ class PromiseAsyncTask extends AsyncTask {
 	}
 
 	final public function onCompletion(Server $server) : void {
-		/** @var IPromise $promise */
+		/** @var PromiseInterface $promise */
 		[$promise] = $this->fetchLocal();
 		$data = $this->deserializeData($this->ret);
 		foreach ($promise->getResultConsumer() as $consumer) {

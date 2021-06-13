@@ -1,33 +1,32 @@
 <?php
 
-
 namespace libasync;
-
 
 use Threaded;
 
-interface IPromise {
+interface PromiseInterface {
 	/**
 	 * @thread main thread
-	 * @param callable() $cal this callable will call at async-thread
+	 * @param callable $cal
+	 * this callable will call at async-thread
 	 */
 	public function then(callable $cal) : self;
 
 	/**
 	 * @thread main thread
-	 * @param callable(mixed $ret) : bool $cal this callable will call at main-thread
 	 */
 	public function whenResult(callable $cal) : self;
 
 	/**
 	 * @thread main thread
-	 * @param callable(...$context) : bool $cal this callable will call at main-thread
+	 * @param callable(...$reason) : bool $cal
+	 * this callable will call at main-thread
 	 */
 	public function whenReject(callable $cal) : self;
 
 	/**
 	 * @thread main-thread
-	 * @see IPromise::whenResult()
+	 * @see PromiseInterface::whenResult()
 	 * This method call in whenResult to break context
 	 */
 	public function reject(...$reason) : void;

@@ -1,11 +1,8 @@
 <?php
 
-
 namespace libasync\database;
 
-
 use Threaded;
-
 
 class MySQLiConnInfo extends Threaded {
 	public string $host;
