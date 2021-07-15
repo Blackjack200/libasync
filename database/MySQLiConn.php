@@ -36,7 +36,8 @@ class MySQLiConn extends PromiseAsyncTask {
 			);
 			usleep(20);
 		}
-		foreach ($this->cal as $value) {
+		while ($this->cal->count() > 0) {
+			$value = $this->cal->shift();
 			$this->ret = $this->serializeData($value($conn));
 			if ($this->ret === self::EXECUTE_DROP) {
 				break;

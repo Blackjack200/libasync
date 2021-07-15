@@ -18,7 +18,8 @@ class PDOConn extends PromiseAsyncTask {
 
 	public function onRun() : void {
 		$pdo = new PDO($this->info->dsn, $this->info->username, $this->info->password, $this->info->options);
-		foreach ($this->cal as $value) {
+		while ($this->cal->count() > 0) {
+			$value = $this->cal->shift();
 			$this->ret = $this->serializeData($value($pdo));
 			if ($this->ret === self::EXECUTE_DROP) {
 				break;
