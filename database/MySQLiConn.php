@@ -1,18 +1,18 @@
 <?php
 
-
 namespace libasync\database;
 
-
-use libasync\IPromise;
+use libasync\PromiseInterface;
 use libasync\PromiseAsyncTask;
 use mysqli;
 use mysqli_result;
+use function mysqli_connect;
+use function usleep;
 
 class MySQLiConn extends PromiseAsyncTask {
 	private MySQLiConnInfo $info;
 
-	public function __construct(IPromise $promise, MySQLiConnInfo $info) {
+	public function __construct(PromiseInterface $promise, MySQLiConnInfo $info) {
 		parent::__construct($promise);
 		$this->info = $info;
 	}

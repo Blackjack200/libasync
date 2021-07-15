@@ -1,8 +1,6 @@
 <?php
 
-
 namespace libasync;
-
 
 class Promises {
 	private function __construct() {
@@ -15,7 +13,7 @@ class Promises {
 	/**
 	 * @param class-string<PromiseAsyncTask> $class
 	 */
-	public static function start(IPromise $promise, string $class = PromiseAsyncTask::class, ...$args) : void {
+	public static function start(PromiseInterface $promise, string $class = PromiseAsyncTask::class, ...$args) : void {
 		$task = new $class($promise, ...$args);
 		$task->start();
 	}

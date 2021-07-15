@@ -1,17 +1,15 @@
 <?php
 
-
 namespace libasync\database;
 
-
-use libasync\IPromise;
+use libasync\PromiseInterface;
 use libasync\PromiseAsyncTask;
 use PDO;
 
 class PDOConn extends PromiseAsyncTask {
 	protected PDOConnInfo $info;
 
-	public function __construct(IPromise $promise, PDOConnInfo $info) {
+	public function __construct(PromiseInterface $promise, PDOConnInfo $info) {
 		parent::__construct($promise);
 		$this->info = $info;
 	}
