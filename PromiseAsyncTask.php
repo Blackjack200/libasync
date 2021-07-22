@@ -19,7 +19,7 @@ class PromiseAsyncTask extends AsyncTask {
 
 	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncConsumer();
-		$this->storeLocal([$promise]);
+		$this->storeLocal('promise', $promise);
 	}
 
 	public function onRun() : void {
@@ -36,9 +36,9 @@ class PromiseAsyncTask extends AsyncTask {
 		return igbinary_serialize($val);
 	}
 
-	final public function onCompletion(Server $server) : void {
+	final public function onCompletion() : void {
 		/** @var PromiseInterface $promise */
-		[$promise] = $this->fetchLocal();
+		$promise = $this->fetchLocal('promise');
 		$data = $this->deserializeData($this->ret);
 		foreach ($promise->getResultConsumer() as $consumer) {
 			$consumer($data);
