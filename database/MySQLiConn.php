@@ -23,7 +23,7 @@ class MySQLiConn extends PromiseAsyncTask {
 			$this->info->host,
 			$this->info->username,
 			$this->info->password,
-			$this->info->dataBase,
+			$this->info->database,
 			$this->info->port
 		);
 		while ($i++ < $this->info->retry && !$conn instanceof mysqli) {
@@ -31,7 +31,7 @@ class MySQLiConn extends PromiseAsyncTask {
 				$this->info->host,
 				$this->info->username,
 				$this->info->password,
-				$this->info->dataBase,
+				$this->info->database,
 				$this->info->port
 			);
 			usleep(20);
