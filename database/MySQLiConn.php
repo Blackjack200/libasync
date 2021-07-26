@@ -2,8 +2,9 @@
 
 namespace libasync\database;
 
-use libasync\PromiseInterface;
+use libasync\ArgInfo;
 use libasync\PromiseAsyncTask;
+use libasync\PromiseInterface;
 use mysqli;
 use mysqli_result;
 use function mysqli_connect;
@@ -17,7 +18,7 @@ class MySQLiConn extends PromiseAsyncTask {
 		$this->info = $info;
 	}
 
-	public function onRun() : void {
+	protected function getExtraArgs() : array {
 		$i = 0;
 		$conn = mysqli_connect(
 			$this->info->host,
@@ -36,17 +37,12 @@ class MySQLiConn extends PromiseAsyncTask {
 			);
 			usleep(20);
 		}
-		while ($this->cal->count() > 0) {
-			$value = $this->cal->shift();
-			$this->ret = $this->serializeData($value($conn));
-			if ($this->ret === self::EXECUTE_DROP) {
-				break;
-			}
-		}
-		$conn->close();
+		return [new ArgInfo($conn, static function () use ($conn) : void {
+			mysqli_close($conn);
+		})];
 	}
 
-	public function serializeData($val) : string {
+	protected function serializeData($val) : string {
 		if ($val instanceof mysqli_result) {
 			$val = $val->fetch_assoc();
 		}

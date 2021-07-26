@@ -2,76 +2,58 @@
 
 namespace libasync;
 
-use RuntimeException;
-use Threaded;
-
 class Promise implements PromiseInterface {
-	/** @var Threaded<callable> */
-	protected Threaded $async;
-	/** @var callable[] */
-	protected array $res = [];
 	/** @var callable */
-	protected $rejectConsumer;
-	protected array $rejectReason = [];
-	protected bool $rejected = false;
+	protected $async;
+	/** @var callable[] */
+	protected array $onFulfill = [];
+	/** @var callable[] */
+	protected array $onReject = [];
 	protected string $class = PromiseAsyncTask::class;
 
 	public function __construct() {
-		$this->async = new Threaded();
+		$this->async = static function () : void { };
 	}
 
-	public function bind(string $class) : Promise {
+	public function bind(string $class) : self {
 		$this->class = $class;
 		return $this;
 	}
 
+	public function start() : void {
+		$this->startWithArgs();
+	}
+
+	public function startWithArgs(...$args) : void {
+		$class = $this->class;
+		$task = new $class($this, ...$args);
+		$task->start();
+	}
+
+	public function whenFulfill(callable $cal) : self {
+		$this->onFulfill[] = $cal;
+		return $this;
+	}
+
+	public function whenReject(callable $cal) : self {
+		$this->onReject[] = $cal;
+		return $this;
+	}
+
 	public function then(callable $cal) : self {
-		$this->async[] = $cal;
+		$this->async = $cal;
 		return $this;
 	}
 
-	public function whenResult(callable $cal) : self {
-		$this->res[] = $cal;
-		return $this;
+	public function getFulfillCallbacks() : array {
+		return $this->onFulfill;
 	}
 
-	public function whenReject(callable $cal) : PromiseInterface {
-		$this->rejectConsumer = $cal;
-		return $this;
+	public function getRejectedCallbacks() : array {
+		return $this->onReject;
 	}
 
-	public function reject(...$reason) : void {
-		if ($this->rejected) {
-			throw new RuntimeException('Reject rejected Promise');
-		}
-		$this->rejectReason = $reason;
-		$this->rejected = true;
-	}
-
-	public function start(...$args) : void {
-		Promises::start($this, $this->class, $args);
-	}
-
-	public function getRejectConsumer() : callable {
-		return $this->rejectConsumer;
-	}
-
-	public function getRejectReason() : array {
-		return $this->rejectReason;
-	}
-
-	/**
-	 * @return Threaded<callable>
-	 */
-	public function getAsyncConsumer() : Threaded {
+	public function getAsyncCall() : callable {
 		return $this->async;
-	}
-
-	public function getResultConsumer() : array {
-		return $this->res;
-	}
-
-	public function isRejected() : bool {
-		return $this->rejected;
 	}
 }

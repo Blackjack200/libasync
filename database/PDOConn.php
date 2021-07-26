@@ -2,8 +2,8 @@
 
 namespace libasync\database;
 
-use libasync\PromiseInterface;
 use libasync\PromiseAsyncTask;
+use libasync\PromiseInterface;
 use PDO;
 
 class PDOConn extends PromiseAsyncTask {
@@ -14,14 +14,11 @@ class PDOConn extends PromiseAsyncTask {
 		$this->info = $info;
 	}
 
-	public function onRun() : void {
-		$pdo = new PDO($this->info->dsn, $this->info->username, $this->info->password, $this->info->options);
-		while ($this->cal->count() > 0) {
-			$value = $this->cal->shift();
-			$this->ret = $this->serializeData($value($pdo));
-			if ($this->ret === self::EXECUTE_DROP) {
-				break;
-			}
-		}
+	protected function getExtraArgs() : array {
+		return [new PDO($this->info->dsn,
+			$this->info->username,
+			$this->info->password,
+			$this->info->options
+		)];
 	}
 }

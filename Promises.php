@@ -6,10 +6,6 @@ class Promises {
 	private function __construct() {
 	}
 
-	public static function new() : Promise {
-		return new Promise();
-	}
-
 	/**
 	 * @param class-string<PromiseAsyncTask> $class
 	 */

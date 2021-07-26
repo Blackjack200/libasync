@@ -2,57 +2,86 @@
 
 namespace libasync;
 
+use GlobalLogger;
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
-use Threaded;
+use pocketmine\utils\AssumptionFailedError;
+use Throwable;
 use function igbinary_serialize;
 use function igbinary_unserialize;
 
 class PromiseAsyncTask extends AsyncTask {
-	//FFF
-	public const EXECUTE_DROP = -114514;
-	public const EXECUTE_CONTINUE = 114514;
-	/** @var Threaded<callable> */
-	protected Threaded $cal;
-	/** @var mixed|null */
-	protected $ret;
+	/** @var callable */
+	protected $cal;
+	protected string $result;
+	protected bool $rejected = false;
 
 	public function __construct(PromiseInterface $promise) {
-		$this->cal = $promise->getAsyncConsumer();
+		$this->cal = $promise->getAsyncCall();
 		$this->storeLocal('promise', $promise);
 	}
 
-	public function onRun() : void {
-		while ($this->cal->count() > 0) {
-			$value = $this->cal->shift();
-			$this->ret = $this->serializeData($value());
-			if ($this->ret === self::EXECUTE_DROP) {
-				break;
+	final public function onRun() : void {
+		$reject = function (...$reason) : void {
+			$this->rejected = true;
+			$this->result = $this->serializeData($reason);
+			throw new InterruptSignal();
+		};
+		$resolve = function (...$reason) : void {
+			$this->rejected = false;
+			$this->result = $this->serializeData($reason);
+			throw new InterruptSignal();
+		};
+		$args = $this->getExtraArgs();
+		try {
+			($this->cal)($resolve, $reject, ...array_map(static function ($info) {
+				if (!$info instanceof ArgInfo) {
+					throw new AssumptionFailedError('The extra args should wrapped by ArgInfo');
+				}
+				return $info->value;
+			}, $args));
+		} catch (Throwable $err) {
+			if (!$err instanceof InterruptSignal) {
+				$this->rejected = true;
+				$this->result = $this->serializeData([get_class($err), $err->getMessage()]);
+				GlobalLogger::get()->logException($err);
 			}
 		}
+		foreach ($args as $arg) {
+			($arg->finalizeFunction)();
+		}
+		$this->cal = null;
 	}
 
-	public function serializeData($val) : string {
+	protected function serializeData($val) : string {
 		return igbinary_serialize($val);
 	}
 
+	/** @return ArgInfo[] */
+	protected function getExtraArgs() : array {
+		return [];
+	}
+
 	final public function onCompletion() : void {
-		/** @var PromiseInterface $promise */
 		$promise = $this->fetchLocal('promise');
-		$data = $this->deserializeData($this->ret);
-		foreach ($promise->getResultConsumer() as $consumer) {
-			$consumer($data);
-			if ($promise->isRejected()) {
-				$promise->getRejectConsumer()(...$promise->getRejectReason());
-				break;
-			}
+		if (!$promise instanceof PromiseInterface) {
+			throw new AssumptionFailedError('ThreadLocal should return Promise back.');
+		}
+		$data = $this->deserializeData($this->result);
+		if ($this->rejected) {
+			$callbacks = $promise->getRejectedCallbacks();
+		} else {
+			$callbacks = $promise->getFulfillCallbacks();
+		}
+		foreach ($callbacks as $callback) {
+			$callback(...$data);
 		}
 	}
 
 	/**
 	 * @return mixed|null
 	 */
-	public function deserializeData(string $val) {
+	final protected function deserializeData(string $val) {
 		return igbinary_unserialize($val);
 	}
 

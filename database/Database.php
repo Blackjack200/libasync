@@ -4,7 +4,7 @@ namespace libasync\database;
 
 use libasync\PromiseInterface;
 
-class DataBase {
+class Database {
 	public static function mysqli(PromiseInterface $promise, MySQLiConnInfo $info) : void {
 		$task = new MySQLiConn($promise, $info);
 		$task->start();
