@@ -14,7 +14,7 @@ class PromiseAsyncTask extends AsyncTask {
 	/** @var callable */
 	protected $cal;
 	protected string $result;
-	protected bool $rejected = false;
+	protected bool $rejected = true;
 
 	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncCall();
@@ -23,7 +23,6 @@ class PromiseAsyncTask extends AsyncTask {
 
 	final public function onRun() : void {
 		$reject = function (...$reason) : void {
-			$this->rejected = true;
 			$this->result = $this->serializeData($reason);
 			throw new InterruptSignal();
 		};
@@ -32,8 +31,8 @@ class PromiseAsyncTask extends AsyncTask {
 			$this->result = $this->serializeData($reason);
 			throw new InterruptSignal();
 		};
+		$args = $this->getExtraArgs();
 		try {
-			$args = $this->getExtraArgs();
 			($this->cal)($resolve, $reject, ...array_map(static function ($info) {
 				if (!$info instanceof ArgInfo) {
 					throw new AssumptionFailedError('The extra args should wrapped by ArgInfo');
