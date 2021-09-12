@@ -2,19 +2,21 @@
 
 namespace libasync;
 
-use GlobalLogger;
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
 use pocketmine\utils\AssumptionFailedError;
+use pocketmine\utils\Utils;
 use Throwable;
 use function igbinary_serialize;
 use function igbinary_unserialize;
 
+/** @template T */
 class PromiseAsyncTask extends AsyncTask {
 	/** @var callable */
 	protected $cal;
 	protected string $result;
 	protected bool $rejected = true;
+	protected PromiseException $error;
 
 	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncCall();
@@ -41,9 +43,7 @@ class PromiseAsyncTask extends AsyncTask {
 			}, $args));
 		} catch (Throwable $err) {
 			if (!$err instanceof InterruptSignal) {
-				$this->rejected = true;
-				$this->result = $this->serializeData([get_class($err), $err->getMessage()]);
-				GlobalLogger::get()->logException($err);
+				$this->error = PromiseException::from([$err::class, $err->getMessage(), Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()]);
 			}
 		}
 		foreach ($args as $arg) {
@@ -52,8 +52,16 @@ class PromiseAsyncTask extends AsyncTask {
 		$this->cal = null;
 	}
 
-	protected function serializeData($val) : string {
+	/** @param T $val */
+	protected function serializeData(mixed $val) : string {
 		return igbinary_serialize($val);
+	}
+
+	/**
+	 * @return T
+	 */
+	final protected function deserializeData(string $val) {
+		return igbinary_unserialize($val);
 	}
 
 	/** @return ArgInfo[] */
@@ -66,6 +74,10 @@ class PromiseAsyncTask extends AsyncTask {
 		if (!$promise instanceof PromiseInterface) {
 			throw new AssumptionFailedError('ThreadLocal should return Promise back.');
 		}
+		if (isset($this->error)) {
+			$promise->getErrorHandler()($this->error);
+			return;
+		}
 		$data = $this->deserializeData($this->result);
 		if ($this->rejected) {
 			$callbacks = $promise->getRejectedCallbacks();
@@ -75,13 +87,7 @@ class PromiseAsyncTask extends AsyncTask {
 		foreach ($callbacks as $callback) {
 			$callback(...$data);
 		}
-	}
 
-	/**
-	 * @return mixed|null
-	 */
-	final protected function deserializeData(string $val) {
-		return igbinary_unserialize($val);
 	}
 
 	final public function start() : void {

@@ -3,14 +3,17 @@
 
 namespace libasync;
 
-
+/** @template V */
 class ArgInfo {
-	/** @var mixed|null */
-	public $value;
+	/** @var V */
+	public mixed $value;
 	/** @var callable */
 	public $finalizeFunction;
 
-	public function __construct($value, callable $finalizeFunction) {
+	/**
+	 * @param V $value
+	 */
+	public function __construct(mixed $value, callable $finalizeFunction) {
 		$this->value = $value;
 		$this->finalizeFunction = $finalizeFunction;
 	}

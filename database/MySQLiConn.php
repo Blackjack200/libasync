@@ -42,7 +42,7 @@ class MySQLiConn extends PromiseAsyncTask {
 		})];
 	}
 
-	protected function serializeData($val) : string {
+	protected function serializeData(mixed $val) : string {
 		if ($val instanceof mysqli_result) {
 			$val = $val->fetch_assoc();
 		}

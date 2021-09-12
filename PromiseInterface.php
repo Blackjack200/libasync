@@ -2,24 +2,30 @@
 
 namespace libasync;
 
+use Closure;
+
 interface PromiseInterface {
-	public function whenFulfill(callable $cal) : self;
+	public function whenFulfill(Closure $cal) : self;
 
-	public function whenReject(callable $cal) : self;
+	public function whenReject(Closure $cal) : self;
 
-	public function then(callable $cal) : self;
+	public function catch(Closure $cal) : self;
 
-	public function start() : void;
+	public function then(Closure $cal) : self;
 
-	public function startWithArgs(...$args) : void;
+	public function settle() : void;
+
+	public function settleArgs(...$args) : void;
 
 	public function bind(string $class) : self;
 
-	public function getAsyncCall() : callable;
+	public function getErrorHandler() : Closure;
 
-	/** @return callable[] */
+	public function getAsyncCall() : Closure;
+
+	/** @return Closure[] */
 	public function getFulfillCallbacks() : array;
 
-	/** @return callable[] */
+	/** @return Closure[] */
 	public function getRejectedCallbacks() : array;
 }
