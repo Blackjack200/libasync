@@ -2,25 +2,21 @@
 
 namespace libasync;
 
-use Error;
 use InvalidArgumentException;
 use Logger;
 use pocketmine\errorhandler\ErrorTypeToStringMap;
 use pocketmine\utils\Filesystem;
 use Throwable;
 
-final class PromiseException extends Error {
+final class PromiseException {
 	private function __construct(
 		protected string $class,
-		string           $message,
+		protected string $message,
 		protected array  $trace,
-		int              $code,
-		string           $file,
-		int              $line
+		protected int    $code,
+		protected string $file,
+		protected int    $line
 	) {
-		parent::__construct($message, $code, null);
-		$this->file = $file;
-		$this->line = $line;
 	}
 
 	public static function from(array $arr) : self {
@@ -35,13 +31,17 @@ final class PromiseException extends Error {
 		return is_subclass_of($this->class, $class) || $this->class === $class;
 	}
 
-	public function getClass() : string {
-		return $this->class;
-	}
+	public function getClass() : string { return $this->class; }
 
-	public function getRealTrace() : array {
-		return $this->trace;
-	}
+	public function getMessage() : string { return $this->message; }
+
+	public function getFile() : string { return $this->file; }
+
+	public function getLine() : int { return $this->line; }
+
+	public function getCode() : int { return $this->code; }
+
+	public function getTrace() : array { return $this->trace; }
 
 	public function __toString() {
 		return 'Nop';
@@ -67,7 +67,7 @@ final class PromiseException extends Error {
 
 	public function print(Logger $logger) : void {
 		$logger->critical(self::printExceptionMessage($this));
-		foreach ($this->getRealTrace() as $line) {
+		foreach ($this->getTrace() as $line) {
 			$logger->critical($line);
 		}
 	}
