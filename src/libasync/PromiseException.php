@@ -31,20 +31,15 @@ final class PromiseException {
 		return is_subclass_of($this->class, $class) || $this->class === $class;
 	}
 
-	public function getClass() : string { return $this->class; }
-
-	public function getMessage() : string { return $this->message; }
-
-	public function getFile() : string { return $this->file; }
-
-	public function getLine() : int { return $this->line; }
-
-	public function getCode() : int { return $this->code; }
-
-	public function getTrace() : array { return $this->trace; }
-
 	public function __toString() {
 		return 'Nop';
+	}
+
+	public function print(Logger $logger) : void {
+		$logger->critical(self::printExceptionMessage($this));
+		foreach ($this->getTrace() as $line) {
+			$logger->critical($line);
+		}
 	}
 
 	private static function printExceptionMessage(PromiseException $e) : string {
@@ -65,10 +60,15 @@ final class PromiseException {
 		return $e->getClass() . ": \"$errstr\" ($errno) in \"$errfile\" at line $errline";
 	}
 
-	public function print(Logger $logger) : void {
-		$logger->critical(self::printExceptionMessage($this));
-		foreach ($this->getTrace() as $line) {
-			$logger->critical($line);
-		}
-	}
+	public function getMessage() : string { return $this->message; }
+
+	public function getCode() : int { return $this->code; }
+
+	public function getFile() : string { return $this->file; }
+
+	public function getLine() : int { return $this->line; }
+
+	public function getClass() : string { return $this->class; }
+
+	public function getTrace() : array { return $this->trace; }
 }

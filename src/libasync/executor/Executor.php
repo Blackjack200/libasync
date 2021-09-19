@@ -16,8 +16,8 @@ use Throwable;
 use Volatile;
 
 class Executor extends Thread {
-	public string $autoload;
 	private static array $promiseMap = [];
+	public string $autoload;
 	protected Threaded $queue;
 	protected Threaded $finished;
 	protected Logger $logger;
@@ -43,6 +43,40 @@ class Executor extends Thread {
 		if ($val !== null) {
 			GlobalLogger::get()->debug($val);
 		}
+	}
+
+	public function mainThreadHeartbeat() : void {
+		$this->finished->synchronized(function () : void {
+			while ($this->finished->count() > 0) {
+				[$hash, $err, $rejected, $result] = igbinary_unserialize($this->finished->shift());
+				/** @var Promise $promise */
+				$promise = self::$promiseMap[$hash];
+				$this->executePromiseCallbacks($promise, $err, $rejected, $result);
+				unset(self::$promiseMap[$hash]);
+			}
+		});
+	}
+
+	protected function executePromiseCallbacks(Promise $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
+		if ($err !== null) {
+			$promise->getErrorHandler()($err);
+			return;
+		}
+		if ($rejected) {
+			$callbacks = $promise->getRejectedCallbacks();
+		} else {
+			$callbacks = $promise->getFulfillCallbacks();
+		}
+		foreach ($callbacks as $callback) {
+			$callback(...igbinary_unserialize($result));
+		}
+	}
+
+	public function submit(Promise $promise) : void {
+		$hash = spl_object_hash($promise);
+		self::$promiseMap[$hash] = $promise;
+		$this->queue->synchronized(fn() => $this->queue[] = [$promise->getAsyncCall(), $hash]);
+		$this->notify();
 	}
 
 	protected function onRun() : void {
@@ -80,8 +114,8 @@ class Executor extends Thread {
 			$rejected = false;
 			throw new InterruptSignal();
 		};
-		while ($this->queue->count() > 0) {
-			[$cal, $hash] = $this->queue->shift();
+		while ($this->queue->synchronized(fn() => $this->queue->count()) > 0) {
+			[$cal, $hash] = $this->queue->synchronized(fn() => $this->queue->shift());
 			try {
 				$cal($resolve, $reject, ...$args);
 			} catch (Throwable $e) {
@@ -89,38 +123,7 @@ class Executor extends Thread {
 					$err = PromiseException::from([$e::class, $e->getMessage(), Utils::printableTrace($e->getTrace()), $e->getCode(), $e->getFile(), $e->getLine()]);
 				}
 			}
-			$this->finished[] = igbinary_serialize([$hash, $err, $rejected, $result]);
-		}
-	}
-
-	public function mainThreadHeartbeat() : void {
-		while ($this->finished->count() > 0) {
-			[$hash, $err, $rejected, $result] = igbinary_unserialize($this->finished->shift());
-			/** @var Promise $promise */
-			$promise = self::$promiseMap[$hash];
-			$this->executePromiseCallbacks($promise, $err, $rejected, $result);
-			unset(self::$promiseMap[$hash]);
-		}
-	}
-
-	public function submit(Promise $promise) : void {
-		$hash = spl_object_hash($promise);
-		self::$promiseMap[$hash] = $promise;
-		$this->queue[] = [$promise->getAsyncCall(), $hash];
-	}
-
-	protected function executePromiseCallbacks(Promise $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
-		if ($err !== null) {
-			$promise->getErrorHandler()($err);
-			return;
-		}
-		if ($rejected) {
-			$callbacks = $promise->getRejectedCallbacks();
-		} else {
-			$callbacks = $promise->getFulfillCallbacks();
-		}
-		foreach ($callbacks as $callback) {
-			$callback(...igbinary_unserialize($result));
+			$this->finished->synchronized(fn() => $this->finished[] = igbinary_serialize([$hash, $err, $rejected, $result]));
 		}
 	}
 }

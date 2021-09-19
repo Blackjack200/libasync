@@ -29,6 +29,14 @@ class ThreadFactory {
 		$this->defer = $defer;
 	}
 
+	public static function newCommon() : self {
+		$c = Server::getInstance()->getLoader();
+		return new self(Executor::class, Server::getInstance()->getLogger(), '',
+			static fn() => $c->register(true),
+			static fn() => null
+		);
+	}
+
 	public function setAutoload(string $autoload) : void { $this->autoload = $autoload; }
 
 	public function setClass(string $class) : void { $this->class = $class; }
@@ -37,16 +45,5 @@ class ThreadFactory {
 
 	public function new(string $name) : Executor {
 		return new ($this->class)(new PrefixedLogger($this->logger, "THREAD#$name"), $this->autoload, new Volatile(), $this->prepareArgs, $this->defer);
-	}
-
-	public static function newCommon() : self {
-		$c = Server::getInstance()->getLoader();
-		return new self(Executor::class, Server::getInstance()->getLogger(), '',
-			static function (Executor $e) use ($c) : void {
-				$c->register(true);
-			},
-			static function () : void {
-			}
-		);
 	}
 }

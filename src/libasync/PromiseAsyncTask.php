@@ -47,7 +47,7 @@ class PromiseAsyncTask extends AsyncTask {
 			}
 		}
 		foreach ($args as $arg) {
-			($arg->finalizeFunction)();
+			($arg->func)();
 		}
 		$this->cal = null;
 	}
@@ -55,13 +55,6 @@ class PromiseAsyncTask extends AsyncTask {
 	/** @param T $val */
 	protected function serializeData(mixed $val) : string {
 		return igbinary_serialize($val);
-	}
-
-	/**
-	 * @return T
-	 */
-	final protected function deserializeData(string $val) {
-		return igbinary_unserialize($val);
 	}
 
 	/** @return ArgInfo[] */
@@ -88,6 +81,13 @@ class PromiseAsyncTask extends AsyncTask {
 			$callback(...$data);
 		}
 
+	}
+
+	/**
+	 * @return T
+	 */
+	final protected function deserializeData(string $val) {
+		return igbinary_unserialize($val);
 	}
 
 	final public function start() : void {

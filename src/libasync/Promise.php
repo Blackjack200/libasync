@@ -7,20 +7,19 @@ use GlobalLogger;
 
 class Promise implements PromiseInterface {
 	protected Closure $async;
+	protected Closure $onError;
+
 	/** @var Closure[] */
 	protected array $onFulfill = [];
 	/** @var Closure[] */
 	protected array $onReject = [];
-	protected Closure $onError;
+
 	protected string $class = PromiseAsyncTask::class;
 
-
 	public function __construct() {
-		$empty = static function () : void { };
+		$empty = static fn() => null;
 		$this->async = $empty;
-		$this->onError = static function (PromiseException $err) : void {
-			$err->print(GlobalLogger::get());
-		};
+		$this->onError = static fn(PromiseException $err) => $err->print(GlobalLogger::get());
 	}
 
 	public function bind(string $class) : self {
@@ -28,12 +27,12 @@ class Promise implements PromiseInterface {
 		return $this;
 	}
 
-	public function settle() : void {
-		$this->settleArgs();
-	}
-
 	public function start() : void {
 		$this->settle();
+	}
+
+	public function settle() : void {
+		$this->settleArgs();
 	}
 
 	public function settleArgs(...$args) : void {
