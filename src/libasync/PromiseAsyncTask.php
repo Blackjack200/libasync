@@ -68,7 +68,9 @@ class PromiseAsyncTask extends AsyncTask {
 			throw new AssumptionFailedError('ThreadLocal should return Promise back.');
 		}
 		if (isset($this->error)) {
-			$promise->getErrorHandler()($this->error);
+			if ($this->error !== null) {
+				$promise->getErrorHandler()($this->error);
+			}
 			return;
 		}
 		$data = $this->deserializeData($this->result);
