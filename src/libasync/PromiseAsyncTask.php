@@ -16,7 +16,7 @@ class PromiseAsyncTask extends AsyncTask {
 	protected $cal;
 	protected string $result;
 	protected bool $rejected = true;
-	protected PromiseException $error;
+	protected ?PromiseException $error = null;
 
 	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncCall();
@@ -67,10 +67,8 @@ class PromiseAsyncTask extends AsyncTask {
 		if (!$promise instanceof PromiseInterface) {
 			throw new AssumptionFailedError('ThreadLocal should return Promise back.');
 		}
-		if (isset($this->error)) {
-			if ($this->error !== null) {
-				$promise->getErrorHandler()($this->error);
-			}
+		if ($this->error !== null) {
+			$promise->getErrorHandler()($this->error);
 			return;
 		}
 		$data = $this->deserializeData($this->result);
