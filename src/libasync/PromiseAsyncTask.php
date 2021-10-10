@@ -18,9 +18,14 @@ class PromiseAsyncTask extends AsyncTask {
 	protected bool $rejected = true;
 	protected ?PromiseException $error = null;
 
+	//protected string $backtrace;
+
 	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncCall();
 		$this->storeLocal('promise', $promise);
+		/*ob_start();
+		debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+		$this->backtrace = ob_get_clean();*/
 	}
 
 	final public function onRun() : void {
@@ -34,6 +39,7 @@ class PromiseAsyncTask extends AsyncTask {
 			throw new InterruptSignal();
 		};
 		$args = $this->getExtraArgs();
+		//$interrupt = false;
 		try {
 			($this->cal)($resolve, $reject, ...array_map(static function ($info) {
 				if (!$info instanceof ArgInfo) {
@@ -44,8 +50,16 @@ class PromiseAsyncTask extends AsyncTask {
 		} catch (Throwable $err) {
 			if (!$err instanceof InterruptSignal) {
 				$this->error = PromiseException::from([$err::class, $err->getMessage(), Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()]);
+			} else {
+				$interrupt = true;
 			}
 		}
+		/*if (!$interrupt) {
+			\GlobalLogger::get()->critical($this->backtrace);
+		}
+		if ($this->result === null) {
+			\GlobalLogger::get()->critical($this->backtrace);
+		}*/
 		foreach ($args as $arg) {
 			($arg->func)();
 		}
@@ -80,7 +94,6 @@ class PromiseAsyncTask extends AsyncTask {
 		foreach ($callbacks as $callback) {
 			$callback(...$data);
 		}
-
 	}
 
 	/**
