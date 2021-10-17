@@ -12,10 +12,10 @@ final class PromiseException {
 	private function __construct(
 		protected string $class,
 		protected string $message,
-		protected array  $trace,
-		protected int    $code,
+		protected array $trace,
+		protected int $code,
 		protected string $file,
-		protected int    $line
+		protected int $line
 	) {
 	}
 
@@ -49,7 +49,7 @@ final class PromiseException {
 		if (is_int($errno)) {
 			try {
 				$errno = ErrorTypeToStringMap::get($errno);
-			} catch (InvalidArgumentException $ex) {
+			} catch (InvalidArgumentException) {
 				//pass
 			}
 		}
@@ -60,15 +60,27 @@ final class PromiseException {
 		return $e->getClass() . ": \"$errstr\" ($errno) in \"$errfile\" at line $errline";
 	}
 
-	public function getMessage() : string { return $this->message; }
+	public function getMessage() : string {
+		return $this->message;
+	}
 
-	public function getCode() : int { return $this->code; }
+	public function getCode() : int {
+		return $this->code;
+	}
 
-	public function getFile() : string { return $this->file; }
+	public function getFile() : string {
+		return $this->file;
+	}
 
-	public function getLine() : int { return $this->line; }
+	public function getLine() : int {
+		return $this->line;
+	}
 
-	public function getClass() : string { return $this->class; }
+	public function getClass() : string {
+		return $this->class;
+	}
 
-	public function getTrace() : array { return $this->trace; }
+	public function getTrace() : array {
+		return $this->trace;
+	}
 }

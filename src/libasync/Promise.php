@@ -3,23 +3,21 @@
 namespace libasync;
 
 use Closure;
-use GlobalLogger;
 
 class Promise implements PromiseInterface {
 	protected Closure $async;
-	protected Closure $onError;
+	protected ?Closure $onError = null;
 
 	/** @var Closure[] */
 	protected array $onFulfill = [];
 	/** @var Closure[] */
 	protected array $onReject = [];
 
-	protected string $class = PromiseAsyncTask::class;
+	protected string $class = AsyncPromiseTask::class;
 
 	public function __construct() {
 		$empty = static fn() => null;
 		$this->async = $empty;
-		$this->onError = static fn(PromiseException $err) => $err->print(GlobalLogger::get());
 	}
 
 	public function bind(string $class) : self {
@@ -56,18 +54,24 @@ class Promise implements PromiseInterface {
 		return $this;
 	}
 
-	public function getFulfillCallbacks() : array { return $this->onFulfill; }
+	public function getFulfillCallbacks() : array {
+		return $this->onFulfill;
+	}
 
-	public function getRejectedCallbacks() : array { return $this->onReject; }
+	public function getRejectedCallbacks() : array {
+		return $this->onReject;
+	}
 
-	public function getAsyncCall() : Closure { return $this->async; }
+	public function getAsyncCall() : Closure {
+		return $this->async;
+	}
 
 	public function catch(Closure $cal) : self {
 		$this->onError = $cal;
 		return $this;
 	}
 
-	public function getErrorHandler() : Closure {
+	public function getErrorHandler() : ?Closure {
 		return $this->onError;
 	}
 }

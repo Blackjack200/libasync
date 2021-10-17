@@ -19,7 +19,7 @@ interface PromiseInterface {
 
 	public function bind(string $class) : self;
 
-	public function getErrorHandler() : Closure;
+	public function getErrorHandler() : ?Closure;
 
 	public function getAsyncCall() : Closure;
 
