@@ -8,6 +8,7 @@ use libasync\InterruptSignal;
 use libasync\Promise;
 use libasync\PromiseException;
 use Logger;
+use pocketmine\errorhandler\ErrorToExceptionHandler;
 use pocketmine\thread\Thread;
 use pocketmine\utils\Utils;
 use ReflectionClass;
@@ -58,20 +59,25 @@ class Executor extends Thread {
 	}
 
 	protected function executePromiseCallbacks(Promise $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
-		if ($err !== null) {
-			$errorHandler = $promise->getErrorHandler();
-			if ($errorHandler !== null) {
-				$errorHandler($err);
+		try {
+			$deserialized = igbinary_unserialize($result);
+			if ($err !== null) {
+				$errorHandler = $promise->getErrorHandler();
+				if ($errorHandler !== null) {
+					$errorHandler($err);
+				}
+				return;
 			}
-			return;
-		}
-		if ($rejected) {
-			$callbacks = $promise->getRejectedCallbacks();
-		} else {
-			$callbacks = $promise->getFulfillCallbacks();
-		}
-		foreach ($callbacks as $callback) {
-			$callback(...igbinary_unserialize($result));
+			if ($rejected) {
+				$callbacks = $promise->getRejectedCallbacks();
+			} else {
+				$callbacks = $promise->getFulfillCallbacks();
+			}
+			foreach ($callbacks as $callback) {
+				$callback(...$deserialized);
+			}
+		} catch (Throwable $throwable) {
+			GlobalLogger::get()->logException($throwable);
 		}
 	}
 

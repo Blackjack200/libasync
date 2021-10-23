@@ -80,18 +80,22 @@ class AsyncPromiseTask extends AsyncTask {
 			}
 			return;
 		}
-		$data = $this->deserializeData($this->result);
-		if ($this->rejected) {
-			$callbacks = $promise->getRejectedCallbacks();
-		} else {
-			$callbacks = $promise->getFulfillCallbacks();
-		}
-		foreach ($callbacks as $callback) {
-			if (is_iterable($data)) {
-				$callback(...$data);
+		try {
+			$data = $this->deserializeData($this->result);
+			if ($this->rejected) {
+				$callbacks = $promise->getRejectedCallbacks();
 			} else {
-				$callback($data);
+				$callbacks = $promise->getFulfillCallbacks();
 			}
+			foreach ($callbacks as $callback) {
+				if (is_iterable($data)) {
+					$callback(...$data);
+				} else {
+					$callback($data);
+				}
+			}
+		} catch (Throwable $throwable) {
+			GlobalLogger::get()->logException($throwable);
 		}
 	}
 
