@@ -25,11 +25,11 @@ class Executor extends Thread {
 	protected Closure $prepareArgs;
 
 	public function __construct(
-		Logger   $logger,
-		string   $autoload,
+		Logger $logger,
+		string $autoload,
 		Volatile $queue,
-		Closure  $prepareArgs,
-		Closure  $defer,
+		Closure $prepareArgs,
+		Closure $defer,
 	) {
 		$this->prepareArgs = $prepareArgs;
 		$this->defer = $defer;
@@ -59,7 +59,10 @@ class Executor extends Thread {
 
 	protected function executePromiseCallbacks(Promise $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
 		if ($err !== null) {
-			$promise->getErrorHandler()($err);
+			$errorHandler = $promise->getErrorHandler();
+			if ($errorHandler !== null) {
+				$errorHandler($err);
+			}
 			return;
 		}
 		if ($rejected) {
