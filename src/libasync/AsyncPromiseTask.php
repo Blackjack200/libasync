@@ -40,10 +40,7 @@ class AsyncPromiseTask extends AsyncTask {
 		};
 		$args = $this->getExtraArgs();
 		try {
-			($this->cal)($resolve, $reject, ...array_map(static function ($info) {
-				if (!$info instanceof ArgInfo) {
-					throw new AssumptionFailedError('The extra args should wrapped by ArgInfo');
-				}
+			($this->cal)($resolve, $reject, ...array_map(static function (ArgInfo $info) {
 				return $info->value;
 			}, $args));
 		} catch (Throwable $err) {

@@ -26,11 +26,11 @@ class Executor extends Thread {
 	protected Closure $prepareArgs;
 
 	public function __construct(
-		Logger $logger,
-		string $autoload,
+		Logger   $logger,
+		string   $autoload,
 		Volatile $queue,
-		Closure $prepareArgs,
-		Closure $defer,
+		Closure  $prepareArgs,
+		Closure  $defer,
 	) {
 		$this->prepareArgs = $prepareArgs;
 		$this->defer = $defer;
