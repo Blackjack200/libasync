@@ -65,6 +65,8 @@ class Executor extends Thread {
 				$errorHandler = $promise->getErrorHandler();
 				if ($errorHandler !== null) {
 					$errorHandler($err);
+				}else{
+					$err->print(GlobalLogger::get());
 				}
 				return;
 			}
