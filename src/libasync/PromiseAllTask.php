@@ -6,7 +6,7 @@ use pocketmine\scheduler\Task;
 
 class PromiseAllTask extends Task {
 	private Promise $master;
-	/** @var Promise[] */
+	/** @var PromiseInterface[] */
 	public array $promises = [];
 	private bool $settled = false;
 	private int $fulfilled = 0;

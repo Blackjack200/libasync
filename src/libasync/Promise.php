@@ -76,7 +76,7 @@ class Promise implements PromiseInterface {
 	}
 
 	/**
-	 * @param Promise[] $promises
+	 * @param PromiseInterface[] $promises
 	 * 全部成功调用resolve,存在失败就调用reject
 	 */
 	public static function all(...$promises) : Promise {
@@ -89,7 +89,7 @@ class Promise implements PromiseInterface {
 
 
 	/**
-	 * @param Promise[] $promises
+	 * @param PromiseInterface[] $promises
 	 * 第一个执行完成的Promise决定返回promise执行结果
 	 */
 	public static function race(...$promises) : Promise {
