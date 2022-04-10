@@ -74,4 +74,29 @@ class Promise implements PromiseInterface {
 	public function getErrorHandler() : ?Closure {
 		return $this->onError;
 	}
+
+	/**
+	 * @param Promise[] $promises
+	 * 全部成功调用resolve,存在失败就调用reject
+	 */
+	public static function all(...$promises) : Promise {
+		return (new Promise())
+			->bind(PromiseAllTask::class)
+			->then(static function(PromiseAllTask $t) use ($promises) : void {
+				$t->promises = $promises;
+			});
+	}
+
+
+	/**
+	 * @param Promise[] $promises
+	 * 第一个执行完成的Promise决定返回promise执行结果
+	 */
+	public static function race(...$promises) : Promise {
+		return (new Promise())
+			->bind(PromiseRaceTask::class)
+			->then(static function(PromiseRaceTask $t) use ($promises) : void {
+				$t->promises = $promises;
+			});
+	}
 }
