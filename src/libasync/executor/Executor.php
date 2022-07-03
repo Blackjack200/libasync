@@ -5,10 +5,9 @@ namespace libasync\executor;
 use Closure;
 use GlobalLogger;
 use libasync\InterruptSignal;
-use libasync\Promise;
 use libasync\PromiseException;
+use libasync\PromiseInterface;
 use Logger;
-use pocketmine\errorhandler\ErrorToExceptionHandler;
 use pocketmine\thread\Thread;
 use pocketmine\utils\Utils;
 use ReflectionClass;
@@ -17,6 +16,7 @@ use Throwable;
 use Volatile;
 
 class Executor extends Thread {
+	/** @var PromiseInterface[] */
 	private static array $promiseMap = [];
 	public string $autoload;
 	protected Threaded $queue;
@@ -50,7 +50,6 @@ class Executor extends Thread {
 		$this->finished->synchronized(function () : void {
 			while ($this->finished->count() > 0) {
 				[$hash, $err, $rejected, $result] = igbinary_unserialize($this->finished->shift());
-				/** @var Promise $promise */
 				$promise = self::$promiseMap[$hash];
 				$this->executePromiseCallbacks($promise, $err, $rejected, $result);
 				unset(self::$promiseMap[$hash]);
@@ -58,7 +57,7 @@ class Executor extends Thread {
 		});
 	}
 
-	protected function executePromiseCallbacks(Promise $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
+	protected function executePromiseCallbacks(PromiseInterface $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
 		try {
 			$deserialized = igbinary_unserialize($result);
 			if ($err !== null) {
@@ -83,7 +82,7 @@ class Executor extends Thread {
 		}
 	}
 
-	public function submit(Promise $promise) : void {
+	public function submit(PromiseInterface $promise) : void {
 		$hash = spl_object_hash($promise);
 		self::$promiseMap[$hash] = $promise;
 		$this->queue->synchronized(fn() => $this->queue[] = [$promise->getAsyncCall(), $hash]);

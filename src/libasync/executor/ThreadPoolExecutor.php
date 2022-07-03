@@ -3,6 +3,7 @@
 namespace libasync\executor;
 
 use libasync\Promise;
+use libasync\PromiseInterface;
 use pocketmine\scheduler\ClosureTask;
 use pocketmine\scheduler\TaskScheduler;
 
@@ -45,7 +46,7 @@ class ThreadPoolExecutor {
 		}
 	}
 
-	public function submit(Promise $x) : void {
+	public function submit(PromiseInterface $x) : void {
 		if (++$this->counter >= $this->threadCount) {
 			$this->counter = 0;
 		}

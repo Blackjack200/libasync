@@ -5,14 +5,14 @@ namespace libasync;
 use pocketmine\scheduler\Task;
 
 class PromiseAllTask extends Task {
-	private Promise $master;
+	private PromiseInterface $master;
 	/** @var PromiseInterface[] */
 	public array $promises = [];
 	private bool $settled = false;
 	private int $fulfilled = 0;
 	private int $finished = 0;
 
-	public function __construct(Promise $master) {
+	public function __construct(PromiseInterface $master) {
 		$this->master = $master;
 	}
 
