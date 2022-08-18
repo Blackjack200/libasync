@@ -7,8 +7,8 @@ use Throwable;
 
 class Result {
 	/**
-	 * @param Closure<Closure> $caller
-	 * @param Closure<PromiseException|Throwable> $errorCaller
+	 * @param Closure(Closure $func):void $caller
+	 * @param Closure(Closure $errorFunc):void $errorCaller
 	 */
 	public function __construct(
 		private Closure $caller,
@@ -17,7 +17,7 @@ class Result {
 	}
 
 	/**
-	 * @param Closure<$this>|null $c
+	 * @param Closure($this):void|null $c
 	 */
 	public function unwrap(?Closure $c = null) : void {
 		if ($c === null) {
@@ -27,7 +27,7 @@ class Result {
 	}
 
 	/**
-	 * @param Closure<string> $c
+	 * @param Closure(Closure $errorFunc):void $c
 	 */
 	public function catch(Closure $c) : self {
 		($this->errorCaller)($c);

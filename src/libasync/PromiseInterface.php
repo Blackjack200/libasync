@@ -5,51 +5,38 @@ namespace libasync;
 use Closure;
 
 /**
- * @template T
+ * @template ResultT
+ * @template ReasonT
  */
 interface PromiseInterface {
-	/**
-	 * @param Closure(T):void $cal
-	 */
+	/** @param Closure(ResultT):void $cal */
 	public function whenFulfill(Closure $cal) : self;
 
-	/**
-	 * @param Closure(T):void $cal
-	 */
+	/** @param Closure(ReasonT):void $cal */
 	public function whenReject(Closure $cal) : self;
 
-	/**
-	 * @param Closure(PromiseException):void $cal
-	 */
+	/** @param Closure(PromiseException):void $cal */
 	public function catch(Closure $cal) : self;
 
-	/**
-	 * @param Closure $cal
-	 */
+	/** @param Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void $cal */
 	public function then(Closure $cal) : self;
 
 	public function settle() : void;
 
 	public function settleArgs(...$args) : void;
 
-	/**
-	 * @param string $class
-	 */
+	/** @param class-string $class */
 	public function bind(string $class) : self;
 
+	/** @return Closure(PromiseException):void|null */
 	public function getErrorHandler() : ?Closure;
 
+	/** @return Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */
 	public function getAsyncCall() : Closure;
 
-	/**
-	 * @phpstan-return (Closure(T):void)[]
-	 * @return Closure[]
-	 */
+	/** @return (Closure(ResultT):void)[] */
 	public function getFulfillCallbacks() : array;
 
-	/**
-	 * @phpstan-return (Closure(T):void)[]
-	 * @return Closure[]
-	 */
+	/** @return (Closure(ReasonT):void)[] */
 	public function getRejectedCallbacks() : array;
 }

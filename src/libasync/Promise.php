@@ -4,20 +4,25 @@ namespace libasync;
 
 use Closure;
 
+/**
+ * @template ResultT
+ * @template ReasonT
+ */
 class Promise implements PromiseInterface {
+	/** @var Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */
 	protected Closure $async;
+	/** @var Closure(PromiseException):void|null */
 	protected ?Closure $onError = null;
 
-	/** @var Closure[] */
+	/** @var (Closure(ResultT):void)[] */
 	protected array $onFulfill = [];
-	/** @var Closure[] */
+	/** @var (Closure(ReasonT):void)[] */
 	protected array $onReject = [];
-
+	/** @var class-string */
 	protected string $class = AsyncPromiseTask::class;
 
 	public function __construct() {
-		$empty = static fn() => null;
-		$this->async = $empty;
+		$this->async = static fn() => null;
 	}
 
 	public function bind(string $class) : self {
@@ -25,13 +30,9 @@ class Promise implements PromiseInterface {
 		return $this;
 	}
 
-	public function start() : void {
-		$this->settle();
-	}
+	public function start() : void { $this->settle(); }
 
-	public function settle() : void {
-		$this->settleArgs();
-	}
+	public function settle() : void { $this->settleArgs(); }
 
 	public function settleArgs(...$args) : void {
 		$class = $this->class;
@@ -39,44 +40,47 @@ class Promise implements PromiseInterface {
 		$task->start();
 	}
 
+	/** @param Closure(ResultT):void $cal */
 	public function whenFulfill(Closure $cal) : self {
 		$this->onFulfill[] = $cal;
 		return $this;
 	}
 
+	/** @param Closure(ReasonT):void $cal */
 	public function whenReject(Closure $cal) : self {
 		$this->onReject[] = $cal;
 		return $this;
 	}
 
+	/** @param Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void $cal */
 	public function then(Closure $cal) : self {
 		$this->async = $cal;
 		return $this;
 	}
 
-	public function getFulfillCallbacks() : array {
-		return $this->onFulfill;
-	}
+	/** @return (Closure(ResultT):void)[] */
+	public function getFulfillCallbacks() : array { return $this->onFulfill; }
 
-	public function getRejectedCallbacks() : array {
-		return $this->onReject;
-	}
+	/** @return (Closure(ReasonT):void)[] */
+	public function getRejectedCallbacks() : array { return $this->onReject; }
 
-	public function getAsyncCall() : Closure {
-		return $this->async;
-	}
+	/** @return Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */
+	public function getAsyncCall() : Closure { return $this->async; }
 
+	/** @param Closure(PromiseException):void $cal */
 	public function catch(Closure $cal) : self {
 		$this->onError = $cal;
 		return $this;
 	}
 
+	/** @return Closure(PromiseException):void|null */
 	public function getErrorHandler() : ?Closure {
 		return $this->onError;
 	}
 
 	/**
 	 * @param PromiseInterface[] $promises
+	 * @return Promise<void,void>
 	 * 全部成功调用resolve,存在失败就调用reject
 	 */
 	public static function all(...$promises) : Promise {
