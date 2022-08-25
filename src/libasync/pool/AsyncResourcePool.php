@@ -20,7 +20,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	public function register(string $type, Closure $prepareFunc, Closure $freeFunc) : void {
 		$this->types[$type] = [$prepareFunc, $freeFunc];
 		$this->resources[$type] = [];
-		$this->prepare($type, 3);
+		$this->prepare($type, 1);
 	}
 
 	private function prepare(string $type, int $count) : void {
