@@ -4,6 +4,7 @@ namespace libasync\pool;
 
 
 use Closure;
+use libasync\utils\ResourceRef;
 
 /**
  * @template T

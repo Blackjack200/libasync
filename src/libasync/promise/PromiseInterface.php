@@ -1,6 +1,6 @@
 <?php
 
-namespace libasync;
+namespace libasync\promise;
 
 use Closure;
 

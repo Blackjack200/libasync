@@ -4,20 +4,17 @@ namespace libasync\executor;
 
 use Closure;
 use GlobalLogger;
-use libasync\InterruptSignal;
-use libasync\PromiseException;
-use libasync\PromiseInterface;
+use libasync\promise\BasePromiseRuntime;
+use libasync\promise\PromiseInterface;
 use Logger;
 use pocketmine\thread\Thread;
-use pocketmine\utils\Utils;
 use ReflectionClass;
 use Threaded;
-use Throwable;
 use Volatile;
 
 class Executor extends Thread {
 	/** @var PromiseInterface[] */
-	private static array $promiseMap = [];
+	private static array $promiseThreadLocal = [];
 	public string $autoload;
 	protected Threaded $queue;
 	protected Threaded $finished;
@@ -48,45 +45,34 @@ class Executor extends Thread {
 
 	public function mainThreadHeartbeat() : void {
 		$this->finished->synchronized(function () : void {
-			while ($this->finished->count() > 0) {
-				[$hash, $err, $rejected, $result] = igbinary_unserialize($this->finished->shift());
-				$promise = self::$promiseMap[$hash];
-				$this->executePromiseCallbacks($promise, $err, $rejected, $result);
-				unset(self::$promiseMap[$hash]);
+			while (($data = $this->finished->shift()) !== null) {
+				[$hash, $runtime] = igbinary_unserialize($data);
+				assert($runtime instanceof BasePromiseRuntime);
+				$promise = self::$promiseThreadLocal[$hash];
+				unset(self::$promiseThreadLocal[$hash]);
+				$runtime->onFinished($promise);
 			}
 		});
 	}
 
-	protected function executePromiseCallbacks(PromiseInterface $promise, ?PromiseException $err, bool $rejected, mixed $result) : void {
-		try {
-			$deserialized = igbinary_unserialize($result);
-			if ($err !== null) {
-				$errorHandler = $promise->getErrorHandler();
-				if ($errorHandler !== null) {
-					$errorHandler($err);
-				}else{
-					$err->print(GlobalLogger::get());
-				}
-				return;
-			}
-			if ($rejected) {
-				$callbacks = $promise->getRejectedCallbacks();
-			} else {
-				$callbacks = $promise->getFulfillCallbacks();
-			}
-			foreach ($callbacks as $callback) {
-				$callback(...$deserialized);
-			}
-		} catch (Throwable $throwable) {
-			GlobalLogger::get()->logException($throwable);
-		}
-	}
-
 	public function submit(PromiseInterface $promise) : void {
 		$hash = spl_object_hash($promise);
-		self::$promiseMap[$hash] = $promise;
-		$this->queue->synchronized(fn() => $this->queue[] = [$promise->getAsyncCall(), $hash]);
+		self::$promiseThreadLocal[$hash] = $promise;
+		$runtime = new BasePromiseRuntime();
+		$runtime->setup();
+		$this->queue->synchronized(fn() => $this->queue[] = [$promise->getAsyncCall(), $runtime, $hash]);
 		$this->notify();
+	}
+
+	protected function executeTasks(...$args) : void {
+		while ($this->queue->synchronized(fn() => $this->queue->count()) > 0) {
+			[$cal, $runtime, $hash] = $this->queue->synchronized(fn() => $this->queue->shift());
+			assert($cal instanceof Closure);
+			assert($runtime instanceof BasePromiseRuntime);
+			assert(is_string($hash));
+			$runtime->runFunc($cal, ...$args);
+			$this->finished->synchronized(fn() => $this->finished[] = igbinary_serialize([$hash, $runtime]));
+		}
 	}
 
 	protected function onRun() : void {
@@ -109,31 +95,5 @@ class Executor extends Thread {
 		}
 		($this->defer)(...$args);
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
-	}
-
-	protected function executeTasks(...$args) : void {
-		$result = null;
-		$rejected = true;
-		$reject = static function (...$reason) use (&$result) : void {
-			$result = igbinary_serialize($reason);
-			throw new InterruptSignal();
-		};
-		$err = null;
-		$resolve = static function (...$reason) use (&$rejected, &$result) : void {
-			$result = igbinary_serialize($reason);
-			$rejected = false;
-			throw new InterruptSignal();
-		};
-		while ($this->queue->synchronized(fn() => $this->queue->count()) > 0) {
-			[$cal, $hash] = $this->queue->synchronized(fn() => $this->queue->shift());
-			try {
-				$cal($resolve, $reject, ...$args);
-			} catch (Throwable $e) {
-				if (!$e instanceof InterruptSignal) {
-					$err = PromiseException::from([$e::class, $e->getMessage(), Utils::printableTrace($e->getTrace()), $e->getCode(), $e->getFile(), $e->getLine()]);
-				}
-			}
-			$this->finished->synchronized(fn() => $this->finished[] = igbinary_serialize([$hash, $err, $rejected, $result]));
-		}
 	}
 }

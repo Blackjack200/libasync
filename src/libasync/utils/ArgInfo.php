@@ -1,7 +1,7 @@
 <?php
 
 
-namespace libasync;
+namespace libasync\utils;
 
 use Closure;
 

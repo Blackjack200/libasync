@@ -1,28 +1,27 @@
 <?php
 
-namespace libasync;
+namespace libasync\promise\task;
 
 use Closure;
+use libasync\promise\BasePromiseRuntime;
+use libasync\promise\PromiseInterface;
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
 use pocketmine\utils\AssumptionFailedError;
 
 class AsyncPromiseTask extends AsyncTask {
 	protected Closure $cal;
-	use PromiseRuntime;
-
-	//protected string $backtrace;
+	protected BasePromiseRuntime $runtime;
 
 	public function __construct(PromiseInterface $promise) {
 		$this->cal = $promise->getAsyncCall();
 		$this->storeLocal('promise', $promise);
-		/*ob_start();
-		debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-		$this->backtrace = ob_get_clean();*/
+		$this->runtime = new BasePromiseRuntime();
+		$this->runtime->setup();
 	}
 
 	final public function onRun() : void {
-		$this->runFunc($this->cal);
+		$this->runtime->runFunc($this->cal);
 	}
 
 	final public function start() : void {
@@ -34,6 +33,6 @@ class AsyncPromiseTask extends AsyncTask {
 		if (!$promise instanceof PromiseInterface) {
 			throw new AssumptionFailedError('ThreadLocal should return Promise back.');
 		}
-		$this->onFinished($promise);
+		$this->runtime->onFinished($promise);
 	}
 }

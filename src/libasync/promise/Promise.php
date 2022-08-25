@@ -1,14 +1,18 @@
 <?php
 
-namespace libasync;
+namespace libasync\promise;
 
 use Closure;
+use libasync\promise\task\AsyncPromiseTask;
+use libasync\promise\task\PromiseAllTask;
+use libasync\promise\task\PromiseRaceTask;
 
 /**
  * @template ResultT
  * @template ReasonT
  */
 class Promise implements PromiseInterface {
+	public static string $defaultLauncher = AsyncPromiseTask::class;
 	/** @var Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */
 	protected Closure $async;
 	/** @var Closure(PromiseException):void|null */

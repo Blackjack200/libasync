@@ -1,9 +1,12 @@
 <?php
 
-namespace libasync;
+namespace libasync\result;
 
 
 use GlobalLogger;
+use libasync\InterruptSignal;
+use libasync\promise\PromiseException;
+use libasync\promise\PromiseInterface;
 use pocketmine\utils\Utils;
 
 class ResultPromiseCaller {

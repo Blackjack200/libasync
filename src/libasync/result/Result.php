@@ -1,8 +1,10 @@
 <?php
 
-namespace libasync;
+namespace libasync\result;
 
 use Closure;
+use libasync\promise\PromiseInterface;
+use libasync\promise\SyncedPromise;
 use Throwable;
 
 class Result {
@@ -19,7 +21,7 @@ class Result {
 	/**
 	 * @param Closure($this):void|null $c
 	 */
-	public function unwrap(?Closure $c = null) : void {
+	public function next(?Closure $c = null) : void {
 		if ($c === null) {
 			$c = static fn() => null;
 		}
@@ -52,16 +54,16 @@ class Result {
 				$result = $results[$i];
 				$lastFunc = static function(...$a) use ($lastFunc, &$args, $result) {
 					$args = array_merge($args, $a);
-					$result->unwrap($lastFunc);
+					$result->next($lastFunc);
 				};
 			}
-			$results[array_key_first($results)]->unwrap($lastFunc);
+			$results[array_key_first($results)]->next($lastFunc);
 		}, static fn() => null);
 	}
 
 	public function promise() : PromiseInterface {
 		return (new SyncedPromise())->bind(ResultPromiseCaller::class)->then(function($resolve, $reject, $errorHandler) : void {
-			$this->unwrap(static function(...$args) use ($errorHandler, $resolve) : void {
+			$this->next(static function(...$args) use ($errorHandler, $resolve) : void {
 				try {
 					$resolve(...$args);
 				} catch (Throwable $err) {
@@ -71,7 +73,14 @@ class Result {
 		});
 	}
 
-	private static function empty() : Result {
-		return new Result(static fn(Closure $c) => $c(), static fn() => null);
+	public static function empty() : Result {
+		return self::noError(static fn(Closure $c) => $c());
+	}
+
+	/**
+	 * @param Closure(Closure $func):void $caller
+	 */
+	public static function noError(Closure $caller) : Result {
+		return new Result($caller, static fn() => null);
 	}
 }

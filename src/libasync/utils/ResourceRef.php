@@ -1,6 +1,6 @@
 <?php
 
-namespace libasync\pool;
+namespace libasync\utils;
 
 use Closure;
 

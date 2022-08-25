@@ -1,18 +1,16 @@
 <?php
 
-namespace libasync;
+namespace libasync\promise;
 
-use InvalidArgumentException;
+use libasync\utils\Utils;
 use Logger;
-use pocketmine\errorhandler\ErrorTypeToStringMap;
-use pocketmine\utils\Filesystem;
 use Throwable;
 
 final class PromiseException {
 	private function __construct(
 		protected string $class,
 		protected string $message,
-		protected array $trace,
+		protected array  $trace,
 		protected int $code,
 		protected string $file,
 		protected int $line
@@ -36,29 +34,12 @@ final class PromiseException {
 	}
 
 	public function print(Logger $logger) : void {
-		$logger->critical(self::printExceptionMessage($this));
+		$logger->critical(Utils::printPromiseExceptionMessage($this));
 		foreach ($this->getTrace() as $line) {
 			$logger->critical($line);
 		}
 	}
 
-	private static function printExceptionMessage(PromiseException $e) : string {
-		$errstr = preg_replace('/\s+/', ' ', trim($e->getMessage()));
-
-		$errno = $e->getCode();
-		if (is_int($errno)) {
-			try {
-				$errno = ErrorTypeToStringMap::get($errno);
-			} catch (InvalidArgumentException) {
-				//pass
-			}
-		}
-
-		$errfile = Filesystem::cleanPath($e->getFile());
-		$errline = $e->getLine();
-
-		return $e->getClass() . ": \"$errstr\" ($errno) in \"$errfile\" at line $errline";
-	}
 
 	public function getMessage() : string {
 		return $this->message;

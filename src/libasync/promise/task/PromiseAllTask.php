@@ -1,15 +1,18 @@
 <?php
 
-namespace libasync;
+namespace libasync\promise\task;
 
+use libasync\AsyncLoader;
+use libasync\promise\PromiseInterface;
 use pocketmine\scheduler\Task;
 
-class PromiseRaceTask extends Task {
+class PromiseAllTask extends Task {
 	private PromiseInterface $master;
 	/** @var PromiseInterface[] */
 	public array $promises = [];
 	private bool $settled = false;
-	private bool|null $resolved = null;
+	private int $fulfilled = 0;
+	private int $finished = 0;
 
 	public function __construct(PromiseInterface $master) {
 		$this->master = $master;
@@ -17,22 +20,25 @@ class PromiseRaceTask extends Task {
 
 	public function onRun() : void {
 		if (!$this->settled) {
+			/** @noinspection PsalmAdvanceCallableParamsInspection */
 			$this->master->getAsyncCall()($this);
 			foreach ($this->promises as $promise) {
 				$promise->whenFulfill(function() : void {
-					$this->resolved = true;
+					$this->fulfilled++;
+					$this->finished++;
 				})->whenReject(function() : void {
-					$this->resolved = false;
+					$this->finished++;
 				})->catch(function() : void {
-					$this->resolved = false;
+					$this->finished++;
 				})->settle();
 			}
 			$this->settled = true;
 			return;
 		}
-		if ($this->resolved !== null) {
+		$cnt = count($this->promises);
+		if ($this->finished === $cnt) {
 			$this->getHandler()->cancel();
-			if ($this->resolved) {
+			if ($this->fulfilled === $cnt) {
 				foreach ($this->master->getFulfillCallbacks() as $func) {
 					$func();
 				}

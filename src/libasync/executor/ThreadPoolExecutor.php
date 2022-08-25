@@ -2,8 +2,7 @@
 
 namespace libasync\executor;
 
-use libasync\Promise;
-use libasync\PromiseInterface;
+use libasync\promise\PromiseInterface;
 use pocketmine\scheduler\ClosureTask;
 use pocketmine\scheduler\TaskScheduler;
 

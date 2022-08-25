@@ -3,7 +3,8 @@
 namespace libasync\pool;
 
 use Closure;
-use libasync\Promise;
+use libasync\promise\Promise;
+use libasync\utils\ResourceRef;
 
 /**
  * @template T of scalar
