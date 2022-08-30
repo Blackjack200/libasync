@@ -21,7 +21,10 @@ class AsyncPromiseTask extends AsyncTask {
 	}
 
 	final public function onRun() : void {
-		$this->runtime->runFunc($this->cal);
+		//WTF
+		$runtime = $this->runtime;
+		$runtime->runFunc($this->cal);
+		$this->runtime = $runtime;
 	}
 
 	final public function start() : void {
