@@ -9,7 +9,7 @@ use Volatile;
  * @template T
  * @implements BusInterface<T>
  */
-class ThreadedBus implements BusInterface {
+class ThreadedBus extends Volatile implements BusInterface {
 	private Volatile $buffer;
 	private Volatile $handler;
 
