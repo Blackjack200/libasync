@@ -44,15 +44,13 @@ class Executor extends Thread {
 	}
 
 	public function mainThreadHeartbeat() : void {
-		$this->finished->synchronized(function () : void {
-			while (($data = $this->finished->shift()) !== null) {
-				[$hash, $runtime] = igbinary_unserialize($data);
-				assert($runtime instanceof BasePromiseRuntime);
-				$promise = self::$promiseThreadLocal[$hash];
-				unset(self::$promiseThreadLocal[$hash]);
-				$runtime->onFinished($promise);
-			}
-		});
+		while (($data = $this->finished->synchronized(fn() => $this->finished->shift())) !== null) {
+			[$hash, $runtime] = igbinary_unserialize($data);
+			assert($runtime instanceof BasePromiseRuntime);
+			$promise = self::$promiseThreadLocal[$hash];
+			unset(self::$promiseThreadLocal[$hash]);
+			$runtime->onFinished($promise);
+		}
 	}
 
 	public function submit(PromiseInterface $promise) : void {
