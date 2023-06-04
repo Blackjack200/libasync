@@ -7,14 +7,16 @@ use GlobalLogger;
 use libasync\InterruptSignal;
 use libasync\utils\ArgInfo;
 use Logger;
+use pmmp\thread\ThreadSafe;
+use pmmp\thread\ThreadSafeArray;
 use pocketmine\utils\Utils;
 use Throwable;
 
-class BasePromiseRuntime {
+class BasePromiseRuntime extends ThreadSafe {
 	protected string $result;
 	protected bool $rejected = true;
 	protected ?PromiseException $error = null;
-	private array $callTrace;
+	private ThreadSafeArray $callTrace;
 
 	public function __construct(private bool $serialize = true) { }
 
@@ -115,5 +117,5 @@ class BasePromiseRuntime {
 		return $val;
 	}
 
-	public function setup() : void { $this->callTrace = Utils::printableCurrentTrace(); }
+	public function setup() : void { $this->callTrace = ThreadSafeArray::fromArray(Utils::printableCurrentTrace()); }
 }

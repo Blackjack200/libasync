@@ -3,19 +3,20 @@
 namespace libasync\event;
 
 use Closure;
-use Volatile;
+use pmmp\thread\ThreadSafe;
+use pmmp\thread\ThreadSafeArray;
 
 /**
  * @template T
  * @implements BusInterface<T>
  */
-class ThreadedBus extends Volatile implements BusInterface {
-	private Volatile $buffer;
-	private Volatile $handler;
+class ThreadedBus extends ThreadSafe implements BusInterface {
+	private ThreadSafeArray $buffer;
+	private ThreadSafeArray $handler;
 
 	public function __construct() {
-		$this->buffer = new Volatile();
-		$this->handler = new Volatile();
+		$this->buffer = new ThreadSafeArray();
+		$this->handler = new ThreadSafeArray();
 	}
 
 	public function process() : void {

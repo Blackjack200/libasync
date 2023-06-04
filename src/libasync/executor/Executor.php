@@ -6,35 +6,34 @@ use Closure;
 use GlobalLogger;
 use libasync\promise\BasePromiseRuntime;
 use libasync\promise\PromiseInterface;
-use Logger;
+use pmmp\thread\ThreadSafeArray;
+use pocketmine\thread\log\ThreadSafeLogger;
 use pocketmine\thread\Thread;
 use ReflectionClass;
-use Threaded;
-use Volatile;
 
 class Executor extends Thread {
 	/** @var PromiseInterface[] */
 	private static array $promiseThreadLocal = [];
 	public string $autoload;
-	protected Threaded $queue;
-	protected Threaded $finished;
-	protected Logger $logger;
+	protected ThreadSafeArray $queue;
+	protected ThreadSafeArray $finished;
+	protected ThreadSafeLogger $logger;
 	protected Closure $defer;
 	protected Closure $prepareArgs;
 
 	public function __construct(
-		Logger   $logger,
-		string   $autoload,
-		Volatile $queue,
-		Closure  $prepareArgs,
-		Closure  $defer,
+		ThreadSafeLogger $logger,
+		string           $autoload,
+		ThreadSafeArray  $queue,
+		Closure          $prepareArgs,
+		Closure          $defer,
 	) {
 		$this->prepareArgs = $prepareArgs;
 		$this->defer = $defer;
 		$this->logger = $logger;
 		$this->autoload = $autoload;
 		$this->queue = $queue;
-		$this->finished = new Threaded();
+		$this->finished = new ThreadSafeArray();
 	}
 
 	public function log(?string $val) : void {

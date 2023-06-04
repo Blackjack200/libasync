@@ -3,15 +3,16 @@
 namespace libasync\event;
 
 use Closure;
-use Volatile;
+use pmmp\thread\ThreadSafe;
+use pmmp\thread\ThreadSafeArray;
 
-class ThreadedTopicBus extends Volatile {
-	private Volatile $buffer;
-	private Volatile $handler;
+class ThreadedTopicBus extends ThreadSafe {
+	private ThreadSafeArray $buffer;
+	private ThreadSafeArray $handler;
 
 	public function __construct() {
-		$this->buffer = new Volatile();
-		$this->handler = new Volatile();
+		$this->buffer = new ThreadSafeArray();
+		$this->handler = new ThreadSafeArray();
 	}
 
 	public function process() : void {
@@ -31,7 +32,7 @@ class ThreadedTopicBus extends Volatile {
 	public function subscribe(string $topic, Closure $handler) : void {
 		$this->handler->synchronized(function() use ($topic, $handler) : void {
 			if (!isset($this->handler[$topic])) {
-				$this->handler[$topic] = new Volatile();
+				$this->handler[$topic] = new ThreadSafeArray();
 			}
 			$this->handler[$topic][] = $handler;
 		});

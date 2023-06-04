@@ -3,24 +3,25 @@
 namespace libasync\executor;
 
 use Closure;
-use Logger;
+use libasync\utils\ThreadSafePrefixedLogger;
+use pmmp\thread\ThreadSafeArray;
 use pocketmine\Server;
-use PrefixedLogger;
+use pocketmine\thread\log\ThreadSafeLogger;
 use Volatile;
 
 class ThreadFactory {
 	private Closure $defer;
 	private Closure $prepareArgs;
 	private string $autoload;
-	private Logger $logger;
+	private ThreadSafeLogger $logger;
 	private string $class;
 
 	public function __construct(
-		string  $class,
-		Logger  $logger,
-		string  $autoload,
-		Closure $prepareArgs,
-		Closure $defer,
+		string           $class,
+		ThreadSafeLogger $logger,
+		string           $autoload,
+		Closure          $prepareArgs,
+		Closure          $defer,
 	) {
 		$this->class = $class;
 		$this->logger = $logger;
@@ -41,9 +42,9 @@ class ThreadFactory {
 
 	public function setClass(string $class) : void { $this->class = $class; }
 
-	public function setLogger(Logger $logger) : void { $this->logger = $logger; }
+	public function setLogger(ThreadSafeLogger $logger) : void { $this->logger = $logger; }
 
 	public function new(string $name) : Executor {
-		return new ($this->class)(new PrefixedLogger($this->logger, "THREAD#$name"), $this->autoload, new Volatile(), $this->prepareArgs, $this->defer);
+		return new ($this->class)(new ThreadSafePrefixedLogger($this->logger, "THREAD#$name"), $this->autoload, new ThreadSafeArray(), $this->prepareArgs, $this->defer);
 	}
 }
