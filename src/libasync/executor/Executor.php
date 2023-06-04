@@ -44,7 +44,7 @@ class Executor extends Thread {
 
 	public function mainThreadHeartbeat() : void {
 		while (($data = $this->finished->synchronized(fn() => $this->finished->shift())) !== null) {
-			[$hash, $runtime] = igbinary_unserialize($data);
+			[$hash, $runtime] = $data;
 			assert($runtime instanceof BasePromiseRuntime);
 			$promise = self::$promiseThreadLocal[$hash];
 			unset(self::$promiseThreadLocal[$hash]);
@@ -57,7 +57,7 @@ class Executor extends Thread {
 		self::$promiseThreadLocal[$hash] = $promise;
 		$runtime = new BasePromiseRuntime();
 		$runtime->setup();
-		$this->queue->synchronized(fn() => $this->queue[] = [$promise->getAsyncCall(), $runtime, $hash]);
+		$this->queue->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$promise->getAsyncCall(), $runtime, $hash]));
 		$this->notify();
 	}
 
@@ -68,7 +68,7 @@ class Executor extends Thread {
 			assert($runtime instanceof BasePromiseRuntime);
 			assert(is_string($hash));
 			$runtime->runFunc($cal, ...$args);
-			$this->finished->synchronized(fn() => $this->finished[] = igbinary_serialize([$hash, $runtime]));
+			$this->finished->synchronized(fn() => $this->finished[] = ThreadSafeArray::fromArray([$hash, $runtime]));
 		}
 	}
 
