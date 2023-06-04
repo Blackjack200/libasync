@@ -4,24 +4,26 @@ namespace libasync\promise;
 
 use libasync\utils\Utils;
 use Logger;
+use pmmp\thread\ThreadSafe;
+use pmmp\thread\ThreadSafeArray;
 use Throwable;
 
-final class PromiseException {
+final class PromiseException extends ThreadSafe {
 	private function __construct(
 		protected string $class,
 		protected string $message,
-		protected array  $trace,
+		protected ThreadSafeArray  $trace,
 		protected int $code,
 		protected string $file,
 		protected int $line
 	) {
 	}
 
-	public static function from(array $arr) : self {
+	public static function from(ThreadSafeArray $arr) : self {
 		return new self(...$arr);
 	}
 
-	public static function wrap(Throwable $thr, array $trace) : self {
+	public static function wrap(Throwable $thr, ThreadSafeArray $trace) : self {
 		return new self($thr::class, $thr->getMessage(), $trace, $thr->getCode(), $thr->getFile(), $thr->getLine());
 	}
 
@@ -61,7 +63,7 @@ final class PromiseException {
 		return $this->class;
 	}
 
-	public function getTrace() : array {
+	public function getTrace() : ThreadSafeArray {
 		return $this->trace;
 	}
 }

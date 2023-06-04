@@ -63,7 +63,7 @@ class BasePromiseRuntime extends ThreadSafe {
 	public function getErrorHandler() : Closure {
 		return function(Throwable $err) : void {
 			if (!$err instanceof InterruptSignal) {
-				$this->error = PromiseException::from([$err::class, $err->getMessage(), Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()]);
+				$this->error = PromiseException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), ThreadSafeArray::fromArray(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()]));
 			}
 		};
 	}
