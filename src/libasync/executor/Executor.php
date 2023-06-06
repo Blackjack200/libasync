@@ -4,19 +4,19 @@ namespace libasync\executor;
 
 use Closure;
 use GlobalLogger;
-use libasync\promise\BasePromiseRuntime;
-use libasync\promise\PromiseInterface;
+use libasync\exception\AsyncExecutionException;
+use libasync\runtime\AsyncExecutionRecipient;
+use libasync\runtime\AsyncRuntime;
 use pmmp\thread\ThreadSafeArray;
 use pocketmine\thread\log\ThreadSafeLogger;
 use pocketmine\thread\Thread;
+use pocketmine\utils\Utils;
 use ReflectionClass;
+use Throwable;
 
-class Executor extends Thread {
-	/** @var PromiseInterface[] */
-	private static array $promiseThreadLocal = [];
+class Executor extends Thread implements AsyncRuntime {
 	public string $autoload;
 	protected ThreadSafeArray $queue;
-	protected ThreadSafeArray $finished;
 	protected ThreadSafeLogger $logger;
 	protected Closure $defer;
 	protected Closure $prepareArgs;
@@ -33,7 +33,6 @@ class Executor extends Thread {
 		$this->logger = $logger;
 		$this->autoload = $autoload;
 		$this->queue = $queue;
-		$this->finished = new ThreadSafeArray();
 	}
 
 	public function log(?string $val) : void {
@@ -42,34 +41,43 @@ class Executor extends Thread {
 		}
 	}
 
-	public function mainThreadHeartbeat() : void {
-		while (($data = $this->finished->synchronized(fn() => $this->finished->shift())) !== null) {
-			[$hash, $runtime] = $data;
-			assert($runtime instanceof BasePromiseRuntime);
-			$promise = self::$promiseThreadLocal[$hash];
-			unset(self::$promiseThreadLocal[$hash]);
-			$runtime->onFinished($promise);
-		}
-	}
-
-	public function submit(PromiseInterface $promise) : void {
-		$hash = spl_object_hash($promise);
-		self::$promiseThreadLocal[$hash] = $promise;
-		$runtime = new BasePromiseRuntime();
-		$runtime->setup();
-		$this->queue->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$promise->getAsyncCall(), $runtime, $hash]));
-		$this->notify();
-	}
-
-	protected function executeTasks(...$args) : void {
+	protected function executeTasks(...$argsInjected) : void {
 		while ($this->queue->synchronized(fn() => $this->queue->count()) > 0) {
-			[$cal, $runtime, $hash] = $this->queue->synchronized(fn() => $this->queue->shift());
-			assert($cal instanceof Closure);
-			assert($runtime instanceof BasePromiseRuntime);
-			assert(is_string($hash));
-			$runtime->runFunc($cal, ...$args);
-			$this->finished->synchronized(fn() => $this->finished[] = ThreadSafeArray::fromArray([$hash, $runtime]));
+			[$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc] = $this->queue->synchronized(fn() => $this->queue->shift());
+			assert($reci instanceof AsyncExecutionRecipient && $closure instanceof Closure);
+			try {
+				if ($extraArgPrepareFunc !== null) {
+					$args = ($extraArgPrepareFunc)($reci);
+				} else {
+					$args = [];
+				}
+				try {
+					$result = ($closure)(...$args, ...$argsInjected);
+					$reci->setResult($result);
+				} catch (Throwable $err) {
+					$this->setError($reci, $err);
+				}
+				if ($extraArgDestroyFunc !== null) {
+					($extraArgDestroyFunc)(...$args);
+				}
+			} catch (Throwable $err) {
+				$this->setError($reci, $err);
+			}
+			try {
+				try {
+					$result = ($closure)(...$args);
+					$reci->setResult($result);
+				} catch (Throwable $err) {
+					$this->setError($reci, $err);
+				}
+			} catch (Throwable $err) {
+				$this->setError($reci, $err);
+			}
 		}
+	}
+
+	private function setError(AsyncExecutionRecipient $reci, Throwable $err) : void {
+		$reci->setError(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), ThreadSafeArray::fromArray(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
 	}
 
 	protected function onRun() : void {
@@ -79,11 +87,11 @@ class Executor extends Thread {
 		}
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' started');
 		$tick = 0;
-		$args = ($this->prepareArgs)($this);
+		$args = ($this->prepareArgs)($this) ?? [];
 		while (!$this->isKilled) {
 			$this->executeTasks(...$args);
-			usleep(50);
-			if ($tick++ === 60000) {
+			usleep(10);
+			if ($tick++ === 200) {
 				gc_enable();
 				gc_collect_cycles();
 				gc_mem_caches();
@@ -92,5 +100,11 @@ class Executor extends Thread {
 		}
 		($this->defer)(...$args);
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
+	}
+
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) : AsyncExecutionRecipient {
+		$reci = new AsyncExecutionRecipient();
+		$this->queue->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]));
+		return $reci;
 	}
 }

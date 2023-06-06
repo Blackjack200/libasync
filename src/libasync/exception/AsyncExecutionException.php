@@ -1,6 +1,6 @@
 <?php
 
-namespace libasync\promise;
+namespace libasync\exception;
 
 use libasync\utils\Utils;
 use Logger;
@@ -8,14 +8,14 @@ use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 use Throwable;
 
-final class PromiseException extends ThreadSafe {
+final class AsyncExecutionException extends ThreadSafe {
 	private function __construct(
-		protected string $class,
-		protected string $message,
-		protected ThreadSafeArray  $trace,
-		protected int $code,
-		protected string $file,
-		protected int $line
+		protected string          $class,
+		protected string          $message,
+		protected ThreadSafeArray $trace,
+		protected int             $code,
+		protected string          $file,
+		protected int             $line
 	) {
 	}
 
@@ -63,7 +63,7 @@ final class PromiseException extends ThreadSafe {
 		return $this->class;
 	}
 
-	public function getTrace() : ThreadSafeArray {
+	public function getTrace() : array {
 		return $this->trace;
 	}
 }

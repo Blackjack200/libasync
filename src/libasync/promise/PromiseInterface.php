@@ -3,6 +3,7 @@
 namespace libasync\promise;
 
 use Closure;
+use libasync\exception\AsyncExecutionException;
 
 /**
  * @template ResultT
@@ -15,7 +16,7 @@ interface PromiseInterface {
 	/** @param Closure(ReasonT):void $cal */
 	public function whenReject(Closure $cal) : self;
 
-	/** @param Closure(PromiseException):void $cal */
+	/** @param Closure(AsyncExecutionException):void $cal */
 	public function catch(Closure $cal) : self;
 
 	/** @param Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void $cal */
@@ -28,7 +29,7 @@ interface PromiseInterface {
 	/** @param class-string $class */
 	public function bind(string $class) : self;
 
-	/** @return Closure(PromiseException):void|null */
+	/** @return Closure(AsyncExecutionException):void|null */
 	public function getErrorHandler() : ?Closure;
 
 	/** @return Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */

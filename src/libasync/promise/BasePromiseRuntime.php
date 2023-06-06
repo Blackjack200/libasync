@@ -4,6 +4,7 @@ namespace libasync\promise;
 
 use Closure;
 use GlobalLogger;
+use libasync\exception\AsyncExecutionException;
 use libasync\InterruptSignal;
 use libasync\utils\ArgInfo;
 use Logger;
@@ -15,7 +16,7 @@ use Throwable;
 class BasePromiseRuntime extends ThreadSafe {
 	protected string $result;
 	protected bool $rejected = true;
-	protected ?PromiseException $error = null;
+	protected ?AsyncExecutionException $error = null;
 	private ThreadSafeArray $callTrace;
 
 	public function __construct(private bool $serialize = true) { }
@@ -63,7 +64,7 @@ class BasePromiseRuntime extends ThreadSafe {
 	public function getErrorHandler() : Closure {
 		return function(Throwable $err) : void {
 			if (!$err instanceof InterruptSignal) {
-				$this->error = PromiseException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), ThreadSafeArray::fromArray(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()]));
+				$this->error = AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), ThreadSafeArray::fromArray(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()]));
 			}
 		};
 	}

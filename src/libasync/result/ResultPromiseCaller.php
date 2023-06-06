@@ -4,15 +4,15 @@ namespace libasync\result;
 
 
 use GlobalLogger;
+use libasync\exception\AsyncExecutionException;
 use libasync\InterruptSignal;
-use libasync\promise\PromiseException;
 use libasync\promise\PromiseInterface;
 use pocketmine\utils\Utils;
 
 class ResultPromiseCaller {
 	private mixed $result;
 	private bool $rejected = true;
-	private ?PromiseException $error = null;
+	private ?AsyncExecutionException $error = null;
 	protected PromiseInterface $promise;
 
 	public function __construct(PromiseInterface $promise) {
@@ -33,7 +33,7 @@ class ResultPromiseCaller {
 		};
 		$errorHandler = function(\Throwable $err) : void {
 			if (!$err instanceof InterruptSignal) {
-				$this->error = PromiseException::from([$err::class, $err->getMessage(), Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()]);
+				$this->error = AsyncExecutionException::from([$err::class, $err->getMessage(), Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()]);
 			}
 		};
 		($this->promise->getAsyncCall())($resolve, $reject, $errorHandler);

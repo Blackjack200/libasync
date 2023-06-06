@@ -3,6 +3,7 @@
 namespace libasync\promise;
 
 use Closure;
+use libasync\exception\AsyncExecutionException;
 use libasync\promise\task\AsyncPromiseTask;
 use libasync\promise\task\PromiseAllTask;
 use libasync\promise\task\PromiseRaceTask;
@@ -15,7 +16,7 @@ class Promise implements PromiseInterface {
 	public static string $defaultLauncher = AsyncPromiseTask::class;
 	/** @var Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */
 	protected Closure $async;
-	/** @var Closure(PromiseException):void|null */
+	/** @var Closure(AsyncExecutionException):void|null */
 	protected ?Closure $onError = null;
 
 	/** @var (Closure(ResultT):void)[] */
@@ -71,13 +72,13 @@ class Promise implements PromiseInterface {
 	/** @return Closure(Closure(ResultT):void $resolve, Closure(ReasonT):void $reject, ...$param):void */
 	public function getAsyncCall() : Closure { return $this->async; }
 
-	/** @param Closure(PromiseException):void $cal */
+	/** @param Closure(AsyncExecutionException):void $cal */
 	public function catch(Closure $cal) : self {
 		$this->onError = $cal;
 		return $this;
 	}
 
-	/** @return Closure(PromiseException):void|null */
+	/** @return Closure(AsyncExecutionException):void|null */
 	public function getErrorHandler() : ?Closure {
 		return $this->onError;
 	}

@@ -2,11 +2,13 @@
 
 namespace libasync\executor;
 
+use Closure;
 use libasync\promise\PromiseInterface;
-use pocketmine\scheduler\ClosureTask;
-use pocketmine\scheduler\TaskScheduler;
+use libasync\promise\task\AsyncPromiseTask;
+use libasync\runtime\AsyncExecutionRecipient;
+use libasync\runtime\AsyncRuntime;
 
-class ThreadPoolExecutor {
+class ThreadPoolExecutor implements AsyncRuntime {
 	private int $threadCount;
 	/** @var Executor[] */
 	private array $threads = [];
@@ -14,19 +16,12 @@ class ThreadPoolExecutor {
 
 	public function __construct(
 		ThreadFactory $factory,
-		TaskScheduler $scheduler,
 		int           $threadCount,
 	) {
 		$this->threadCount = $threadCount;
 		for ($i = 1; $i <= $threadCount; $i++) {
 			$this->threads[] = $factory->new((string) $i);
 		}
-		$threads = $this->threads;
-		$scheduler->scheduleRepeatingTask(new ClosureTask(static function () use ($threads) : void {
-			foreach ($threads as $thread) {
-				$thread->mainThreadHeartbeat();
-			}
-		}), 10);
 	}
 
 	public function getThreadCount() : int {
@@ -49,12 +44,14 @@ class ThreadPoolExecutor {
 		if (++$this->counter >= $this->threadCount) {
 			$this->counter = 0;
 		}
-		$this->threads[$this->counter]->submit($x);
+		AsyncPromiseTask::awaitRun($x, $this->threads[$this->counter]);
 	}
 
-	public function mainThreadHeartbeat() : void {
-		foreach ($this->threads as $thread) {
-			$thread->mainThreadHeartbeat();
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) : AsyncExecutionRecipient {
+		if (++$this->counter >= $this->threadCount) {
+			$this->counter = 0;
 		}
+		$e = $this->threads[$this->counter];
+		return $e->runAsync($closure, $extraArgPrepareFunc, $extraArgDestroyFunc);
 	}
 }

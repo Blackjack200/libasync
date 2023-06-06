@@ -1,4 +1,4 @@
 name: libasync
-version: 0.3.0
+version: 0.4.0
 api: 5.0.0
 main: libasync\AsyncLoader
