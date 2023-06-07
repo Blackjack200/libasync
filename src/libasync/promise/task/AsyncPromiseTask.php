@@ -26,32 +26,42 @@ readonly class AsyncPromiseTask {
 			try {
 				$call = $promise->getAsyncCall();
 				$ret = yield from Await::async(
-					static function(...$args) use ($call) : void {
+					static function(...$args) use ($call) {
+						$i = $args[2]();
+						assert($i instanceof AsyncExecutionRecipient);
+						unset($args[2]);
+						$arr = [];
+						foreach ($args as $arg) {
+							$arr[] = $arg;
+						}
 						try {
-							$call(...$args);
+							$ret = $call(...$arr);
+							if (!$i->isFinished()) {
+								$i->setResult([false, Utils::smartSerialize($ret)]);
+							}
 						} catch (Throwable $err) {
 							if (!($err instanceof InterruptSignal)) {
 								throw $err;
 							}
 						}
+						return igbinary_serialize($i->getResult());
 					},
 					$runtime,
 					static fn(AsyncExecutionRecipient $i) => [
 						static function(...$res) use ($i) : void {
-							$i->setResult(ThreadSafeArray::fromArray([false, Utils::smartSerialize($res)]));
+							$i->setResult([false, Utils::smartSerialize($res)]);
 							throw new InterruptSignal();
 						},
 						static function(...$reason) use ($i) : void {
-							$i->setResult(ThreadSafeArray::fromArray([true, Utils::smartSerialize($reason)]));
+							$i->setResult([true, Utils::smartSerialize($reason)]);
 							throw new InterruptSignal();
 						},
+						static fn() => $i,
 					],
 				);
-				if (empty($ret)) {
-					$ret = [false, igbinary_serialize([])];
-				}
-				$c = $ret[0] ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
-				$ff = Utils::smartDeserialize($ret[1]);
+				[$rejected, $result] = igbinary_unserialize($ret);
+				$c = $rejected ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
+				$ff = Utils::smartDeserialize($result);
 				foreach ($c as $cl) {
 					$cl(...$ff);
 				}
