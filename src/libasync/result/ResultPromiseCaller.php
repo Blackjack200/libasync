@@ -7,6 +7,7 @@ use GlobalLogger;
 use libasync\exception\AsyncExecutionException;
 use libasync\InterruptSignal;
 use libasync\promise\PromiseInterface;
+use pmmp\thread\ThreadSafeArray;
 use pocketmine\utils\Utils;
 
 class ResultPromiseCaller {
@@ -33,7 +34,7 @@ class ResultPromiseCaller {
 		};
 		$errorHandler = function(\Throwable $err) : void {
 			if (!$err instanceof InterruptSignal) {
-				$this->error = AsyncExecutionException::from([$err::class, $err->getMessage(), Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()]);
+				$this->error = AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), igbinary_serialize(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()]));
 			}
 		};
 		($this->promise->getAsyncCall())($resolve, $reject, $errorHandler);

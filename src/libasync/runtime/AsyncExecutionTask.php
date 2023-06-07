@@ -43,6 +43,6 @@ class AsyncExecutionTask extends AsyncTask {
 	}
 
 	private function setError(Throwable $err) : void {
-		$this->reci->setError(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), ThreadSafeArray::fromArray(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
+		$this->reci->setError(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), igbinary_serialize(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
 	}
 }

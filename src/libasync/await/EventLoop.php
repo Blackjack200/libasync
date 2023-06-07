@@ -3,7 +3,6 @@
 namespace libasync\await;
 
 use Closure;
-use libasync\runtime\AsyncRuntime;
 use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 
@@ -32,5 +31,14 @@ class EventLoop extends ThreadSafe {
 
 	public function busy() : bool {
 		return count($this->callbacks) !== 0;
+	}
+
+	public function doOnce(Closure $c) : void {
+		$this->synchronized(function() use ($c) : void {
+			$this->callbacks[] = static function($un) use ($c) {
+				$un();
+				$c();
+			};
+		});
 	}
 }

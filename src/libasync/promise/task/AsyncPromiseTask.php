@@ -48,7 +48,7 @@ readonly class AsyncPromiseTask {
 					],
 				);
 				if (empty($ret)) {
-					$ret = [false, []];
+					$ret = [false, igbinary_serialize([])];
 				}
 				$c = $ret[0] ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
 				$ff = Utils::smartDeserialize($ret[1]);
@@ -57,7 +57,7 @@ readonly class AsyncPromiseTask {
 				}
 			} catch (Throwable $err) {
 				if ($promise->getErrorHandler() !== null) {
-					$promise->getErrorHandler()(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), \pocketmine\utils\Utils::printableTrace($err->getTrace()), $err->getCode(), $err->getFile(), $err->getLine()])));
+					$promise->getErrorHandler()(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), igbinary_serialize(\pocketmine\utils\Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
 				} else {
 					throw $err;
 				}

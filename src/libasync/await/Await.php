@@ -70,9 +70,13 @@ class Await {
 			}
 			yield AwaitSignal::SIG_FINISH;
 		};
-		$loop->add(static function($unsubscribe) use ($aa) : void {
-			$g = $aa();
-			foreach ($g as $d) {
+		$g = $aa();
+		$loop->add(static function($unsubscribe) use ($g, $aa) : void {
+			for ($i = 0; $i < 5; $i++) {
+				if(!$g->valid()){
+					break;
+				}
+				$d = $g->current();
 				switch ($d) {
 					case AwaitSignal::SIG_WAIT:
 						break;
@@ -81,6 +85,7 @@ class Await {
 						$unsubscribe();
 						break 2;
 				}
+				$g->next();
 			}
 		});
 	}

@@ -3,7 +3,7 @@
 namespace libasync\pool;
 
 use Closure;
-use libasync\promise\Promise;
+use libasync\await\Await;
 use libasync\utils\ResourceRef;
 
 /**
@@ -26,14 +26,14 @@ class AsyncResourcePool implements ResourcePoolInterface {
 
 	private function prepare(string $type, int $count) : void {
 		$prepareFunc = $this->types[$type][0];
-		$promise = new Promise();
-		$promise
-			->then(static fn($resolve) => $resolve($prepareFunc()))
-			/** @param T $val */
-			->whenFulfill(fn(mixed $val) => $this->resources[$type][] = $val);
-		for ($i = 0; $i < $count; $i++) {
-			$promise->settle();
-		}
+		Await::sync(function() use ($count, $type, $prepareFunc) {
+			for ($i = 0; $i < $count; $i++) {
+				$rawRes = yield from Await::async($prepareFunc);
+				$this->resources[$type][] = $rawRes;
+				yield from Await::sleep(2);
+			}
+		});
+
 	}
 
 	public function isRegistered(string $type) : bool { return isset($this->types[$type]); }
@@ -55,7 +55,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		foreach ($this->resources as $type => $rawRes) {
 			$free = $this->types[$type][1];
 			foreach ($rawRes as $res) {
-				$free($res);
+				$free($res, true);
 			}
 		}
 	}

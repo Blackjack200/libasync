@@ -8,11 +8,11 @@ use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 use Throwable;
 
-final class AsyncExecutionException extends ThreadSafe {
+final class AsyncExecutionException {
 	private function __construct(
 		protected string          $class,
 		protected string          $message,
-		protected ThreadSafeArray $trace,
+		protected string $trace,
 		protected int             $code,
 		protected string          $file,
 		protected int             $line
@@ -23,8 +23,8 @@ final class AsyncExecutionException extends ThreadSafe {
 		return new self(...$arr);
 	}
 
-	public static function wrap(Throwable $thr, ThreadSafeArray $trace) : self {
-		return new self($thr::class, $thr->getMessage(), $trace, $thr->getCode(), $thr->getFile(), $thr->getLine());
+	public static function wrap(Throwable $thr, ThreadSafeArray|array $trace) : self {
+		return new self($thr::class, $thr->getMessage(), igbinary_serialize($trace), $thr->getCode(), $thr->getFile(), $thr->getLine());
 	}
 
 	public function is(string $class) : bool {
@@ -64,6 +64,6 @@ final class AsyncExecutionException extends ThreadSafe {
 	}
 
 	public function getTrace() : array {
-		return $this->trace;
+		return igbinary_unserialize($this->trace);
 	}
 }

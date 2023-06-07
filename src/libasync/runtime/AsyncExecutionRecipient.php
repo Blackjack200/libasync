@@ -14,7 +14,8 @@ use pmmp\thread\ThreadSafe;
  */
 class AsyncExecutionRecipient extends ThreadSafe {
 	private ThreadSafe|string $result;
-	private ?AsyncExecutionException $error = null;
+	private ?string $error = null;
+	private bool $errored = false;
 	private bool $finished = false;
 
 	/**
@@ -24,7 +25,12 @@ class AsyncExecutionRecipient extends ThreadSafe {
 		return Utils::smartDeserialize($this->result);
 	}
 
-	public function getError() : ?AsyncExecutionException { return $this->error; }
+	public function getError() : ?AsyncExecutionException {
+		if(!$this->errored){
+			return null;
+		}
+		return igbinary_unserialize($this->error);
+	}
 
 	public function isFinished() : bool { return $this->finished; }
 
@@ -36,7 +42,8 @@ class AsyncExecutionRecipient extends ThreadSafe {
 	}
 
 	public function setError(?AsyncExecutionException $error) : void {
-		$this->error = $error;
+		$this->error = igbinary_serialize($error);
+		$this->errored = true;
 		$this->setFinished();
 	}
 

@@ -13,7 +13,7 @@ class ResourceRef {
 	 * @param Closure(T):void $freeFunc
 	 */
 	public function __construct(
-		private mixed    $val,
+		private mixed   $val,
 		private Closure $freeFunc
 	) {
 	}
@@ -21,6 +21,6 @@ class ResourceRef {
 	public function get() : mixed { return $this->val; }
 
 	public function free() : void {
-		($this->freeFunc)($this->val);
+		($this->freeFunc)($this->val, false);
 	}
 }

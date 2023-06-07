@@ -63,21 +63,11 @@ class Executor extends Thread implements AsyncRuntime {
 			} catch (Throwable $err) {
 				$this->setError($reci, $err);
 			}
-			try {
-				try {
-					$result = ($closure)(...$args);
-					$reci->setResult($result);
-				} catch (Throwable $err) {
-					$this->setError($reci, $err);
-				}
-			} catch (Throwable $err) {
-				$this->setError($reci, $err);
-			}
 		}
 	}
 
 	private function setError(AsyncExecutionRecipient $reci, Throwable $err) : void {
-		$reci->setError(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), ThreadSafeArray::fromArray(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
+		$reci->setError(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), igbinary_serialize(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
 	}
 
 	protected function onRun() : void {
