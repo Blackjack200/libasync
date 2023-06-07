@@ -59,6 +59,10 @@ class Await {
 		}
 	}
 
+	public static function do(callable $do, ?EventLoop $loop = null) {
+		self::sync($do, $loop);
+	}
+
 	public static function sync(callable $do, ?EventLoop $loop = null) {
 		if ($loop === null) {
 			$loop = GlobalRuntime::getLoop();
