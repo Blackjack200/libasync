@@ -44,7 +44,7 @@ readonly class AsyncPromiseTask {
 								throw $err;
 							}
 						}
-						return igbinary_serialize($i->getResult());
+						return Utils::smartSerialize($i->getResult());
 					},
 					$runtime,
 					static fn(AsyncExecutionRecipient $i) => [
@@ -59,11 +59,16 @@ readonly class AsyncPromiseTask {
 						static fn() => $i,
 					],
 				);
-				[$rejected, $result] = igbinary_unserialize($ret);
-				$c = $rejected ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
-				$ff = Utils::smartDeserialize($result);
-				foreach ($c as $cl) {
-					$cl(...$ff);
+				try {
+					[$rejected, $result] = Utils::smartDeserialize($ret);
+					$c = $rejected ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
+					$ff = Utils::smartDeserialize($result);
+					foreach ($c as $cl) {
+						$cl(...$ff);
+					}
+				}catch (Throwable $thr){
+					var_dump($ret);
+					throw $thr;
 				}
 			} catch (Throwable $err) {
 				if ($promise->getErrorHandler() !== null) {

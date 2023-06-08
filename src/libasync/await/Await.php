@@ -4,9 +4,11 @@ namespace libasync\await;
 
 use Closure;
 use Generator;
+use GlobalLogger;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncRuntime;
 use libasync\utils\Utils;
+use RuntimeException;
 
 class Await {
 	public function __construct() { }
@@ -24,6 +26,7 @@ class Await {
 		if ($runtime === null) {
 			$runtime = GlobalRuntime::getRuntime();
 		}
+		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
 		$reci = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
 
 		$loop->add(static function($unsubscribe) use ($reci) : void {
@@ -33,7 +36,8 @@ class Await {
 		});
 		yield from $reci->awaitFinish();
 		if ($reci->getError() !== null) {
-			throw new \RuntimeException(Utils::printPromiseExceptionMessage($reci->getError()));
+			$reci->getError()->printWithCallTrace(GlobalLogger::get(), $callTrace);
+			throw new RuntimeException(Utils::printPromiseExceptionMessage($reci->getError()));
 		}
 		return $reci->getResult();
 	}
@@ -64,6 +68,7 @@ class Await {
 	}
 
 	public static function sync(callable $do, ?EventLoop $loop = null) {
+		$callTrace = Utils::smartSerialize(\pocketmine\utils\Utils::printableCurrentTrace());
 		if ($loop === null) {
 			$loop = GlobalRuntime::getLoop();
 		}
@@ -75,13 +80,16 @@ class Await {
 			yield AwaitSignal::SIG_FINISH;
 		};
 		$g = $aa();
-		$loop->add(static function($unsubscribe) use ($g, $aa) : void {
+		$loop->add(static function($unsubscribe) use ($callTrace, $g, $aa) : void {
 			for ($i = 0; $i < 5; $i++) {
-				if(!$g->valid()){
+				if (!$g->valid()) {
 					break;
 				}
 				$d = $g->current();
 				switch ($d) {
+					case AwaitSignal::SIG_SET_TRACE:
+						$g->send($callTrace);
+						break;
 					case AwaitSignal::SIG_WAIT:
 						break;
 					case AwaitSignal::SIG_FINISH:

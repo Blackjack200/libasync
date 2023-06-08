@@ -2,14 +2,9 @@
 
 namespace libasync;
 
-use libasync\await\Await;
 use libasync\await\EventLoop;
-use libasync\executor\Executor;
-use libasync\executor\ThreadFactory;
-use libasync\executor\ThreadPoolExecutor;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncTaskRuntime;
-use libasync\utils\LoggerUtils;
 use pocketmine\plugin\PluginBase;
 use pocketmine\scheduler\ClosureTask;
 

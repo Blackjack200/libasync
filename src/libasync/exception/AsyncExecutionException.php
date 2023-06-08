@@ -4,18 +4,17 @@ namespace libasync\exception;
 
 use libasync\utils\Utils;
 use Logger;
-use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 use Throwable;
 
 final class AsyncExecutionException {
 	private function __construct(
-		protected string          $class,
-		protected string          $message,
+		protected string $class,
+		protected string $message,
 		protected string $trace,
-		protected int             $code,
-		protected string          $file,
-		protected int             $line
+		protected int    $code,
+		protected string $file,
+		protected int    $line
 	) {
 	}
 
@@ -40,6 +39,19 @@ final class AsyncExecutionException {
 		foreach ($this->getTrace() as $line) {
 			$logger->critical($line);
 		}
+	}
+
+	public function printWithCallTrace(Logger $logger, string $callTrace) : void {
+		$logger->critical(Utils::printPromiseExceptionMessage($this));
+		$logger->critical(
+			"\n--- Stack trace ---\n" .
+			implode("\n", $this->getTrace()) .
+			"\n--- End of exception information ---"
+		);$logger->critical(
+			"\n--- Call Stack trace ---\n" .
+			implode("\n", Utils::smartDeserialize($callTrace)) .
+			"\n--- End of exception information ---"
+		);
 	}
 
 
