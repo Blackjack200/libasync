@@ -28,6 +28,7 @@ class Await {
 		}
 		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
 		$reci = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
+		$reci->setCallTrace($callTrace);
 
 		$loop->add(static function($unsubscribe) use ($reci) : void {
 			if ($reci->isFinished()) {
@@ -63,7 +64,10 @@ class Await {
 		}
 	}
 
-	public static function do(callable $do, ?EventLoop $loop = null) {
+	public static function do(Generator|callable $do, ?EventLoop $loop = null) {
+		if ($do instanceof Generator) {
+			$do = static fn() => yield from $do;
+		}
 		self::sync($do, $loop);
 	}
 

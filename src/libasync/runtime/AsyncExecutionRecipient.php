@@ -17,6 +17,7 @@ class AsyncExecutionRecipient extends ThreadSafe {
 	private ?string $error = null;
 	private bool $errored = false;
 	private bool $finished = false;
+	protected string $callTrace;
 
 	/**
 	 * @return T
@@ -45,6 +46,14 @@ class AsyncExecutionRecipient extends ThreadSafe {
 		$this->error = igbinary_serialize($error);
 		$this->errored = true;
 		$this->setFinished();
+	}
+
+	public function setCallTrace(string $callTrace) : void {
+		$this->callTrace = $callTrace;
+	}
+
+	public function getCallTrace() : string {
+		return $this->callTrace;
 	}
 
 	public function awaitFinish() : Generator {

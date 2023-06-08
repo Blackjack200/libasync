@@ -37,7 +37,7 @@ readonly class AsyncPromiseTask {
 						try {
 							$ret = $call(...$arr);
 							if (!$i->isFinished()) {
-								$i->setResult([false, Utils::smartSerialize($ret)]);
+								$i->setResult([false, Utils::smartSerialize($ret), $i->getCallTrace()]);
 							}
 						} catch (Throwable $err) {
 							if (!($err instanceof InterruptSignal)) {
@@ -49,25 +49,30 @@ readonly class AsyncPromiseTask {
 					$runtime,
 					static fn(AsyncExecutionRecipient $i) => [
 						static function(...$res) use ($i) : void {
-							$i->setResult([false, Utils::smartSerialize($res)]);
+							$i->setResult([false, Utils::smartSerialize($res), $i->getCallTrace()]);
 							throw new InterruptSignal();
 						},
 						static function(...$reason) use ($i) : void {
-							$i->setResult([true, Utils::smartSerialize($reason)]);
+							$i->setResult([true, Utils::smartSerialize($reason), $i->getCallTrace()]);
 							throw new InterruptSignal();
 						},
 						static fn() => $i,
 					],
 				);
 				try {
-					[$rejected, $result] = Utils::smartDeserialize($ret);
+					[$rejected, $result, $callTrace] = Utils::smartDeserialize($ret);
 					$c = $rejected ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
 					$ff = Utils::smartDeserialize($result);
 					foreach ($c as $cl) {
 						$cl(...$ff);
 					}
-				}catch (Throwable $thr){
+				} catch (Throwable $thr) {
 					var_dump($ret);
+					\GlobalLogger::get()->critical(
+						"\n--- Call Stack trace ---\n" .
+						implode("\n", igbinary_unserialize($callTrace ?? igbinary_serialize([]))) .
+						"\n--- End of exception information ---"
+					);
 					throw $thr;
 				}
 			} catch (Throwable $err) {
