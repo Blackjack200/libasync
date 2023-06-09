@@ -85,7 +85,7 @@ class Await {
 		};
 		$g = $aa();
 		$loop->add(static function($unsubscribe) use ($callTrace, $g, $aa) : void {
-			for ($i = 0; $i < 5; $i++) {
+			for ($i = 0; $i < 2; $i++) {
 				if (!$g->valid()) {
 					break;
 				}
