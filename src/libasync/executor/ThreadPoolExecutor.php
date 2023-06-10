@@ -47,11 +47,11 @@ class ThreadPoolExecutor implements AsyncRuntime {
 		AsyncPromiseTask::awaitRun($x, $this->threads[$this->counter]);
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) : AsyncExecutionRecipient {
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionRecipient {
 		if (++$this->counter >= $this->threadCount) {
 			$this->counter = 0;
 		}
 		$e = $this->threads[$this->counter];
-		return $e->runAsync($closure, $extraArgPrepareFunc, $extraArgDestroyFunc);
+		return $e->runAsync($closure, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
 	}
 }

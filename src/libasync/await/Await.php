@@ -27,8 +27,7 @@ class Await {
 			$runtime = GlobalRuntime::getRuntime();
 		}
 		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
-		$reci = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
-		$reci->setCallTrace($callTrace);
+		$reci = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
 
 		$loop->add(static function($unsubscribe) use ($reci) : void {
 			if ($reci->isFinished()) {

@@ -92,8 +92,9 @@ class Executor extends Thread implements AsyncRuntime {
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) : AsyncExecutionRecipient {
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionRecipient {
 		$reci = new AsyncExecutionRecipient();
+		$reci->setCallTrace($callTrace ?? \libasync\utils\Utils::smartSerialize(Utils::printableCurrentTrace()));
 		$this->queue->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]));
 		return $reci;
 	}

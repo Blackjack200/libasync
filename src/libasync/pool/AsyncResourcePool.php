@@ -21,7 +21,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	public function register(string $type, Closure $prepareFunc, Closure $freeFunc) : void {
 		$this->types[$type] = [$prepareFunc, $freeFunc];
 		$this->resources[$type] = [];
-		$this->prepare($type, 1);
+		$this->prepare($type, 3);
 	}
 
 	private function prepare(string $type, int $count) : void {
@@ -30,7 +30,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 			for ($i = 0; $i < $count; $i++) {
 				$rawRes = yield from Await::async($prepareFunc);
 				$this->resources[$type][] = $rawRes;
-				yield from Await::sleep(2);
+				yield from Await::sleep(3);
 			}
 		});
 
@@ -43,7 +43,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 			return null;
 		}
 		if (count($this->resources[$type]) === 0) {
-			$this->prepare($type, 1);
+			$this->prepare($type, 5);
 			return null;
 		}
 		$res = array_pop($this->resources[$type]);
