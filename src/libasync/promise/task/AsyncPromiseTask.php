@@ -7,7 +7,7 @@ use libasync\exception\AsyncExecutionException;
 use libasync\InterruptSignal;
 use libasync\promise\Promise;
 use libasync\promise\PromiseInterface;
-use libasync\runtime\AsyncExecutionRecipient;
+use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 use libasync\utils\Utils;
 use pmmp\thread\ThreadSafeArray;
@@ -18,7 +18,7 @@ readonly class AsyncPromiseTask {
 
 	final public function start() : void {
 		$promise = $this->promise;
-		$this->awaitRun($promise);
+		self::awaitRun($promise);
 	}
 
 	public static function awaitRun(PromiseInterface $promise, ?AsyncRuntime $runtime = null) : void {
@@ -28,7 +28,7 @@ readonly class AsyncPromiseTask {
 				$ret = yield from Await::async(
 					static function(...$args) use ($call) {
 						$i = $args[2]();
-						assert($i instanceof AsyncExecutionRecipient);
+						assert($i instanceof AsyncExecutionReceipt);
 						unset($args[2]);
 						$arr = [];
 						foreach ($args as $arg) {
@@ -47,7 +47,7 @@ readonly class AsyncPromiseTask {
 						return Utils::smartSerialize($i->getResult());
 					},
 					$runtime,
-					static fn(AsyncExecutionRecipient $i) => [
+					static fn(AsyncExecutionReceipt $i) => [
 						static function(...$res) use ($i) : void {
 							$i->setResult([false, Utils::smartSerialize($res), $i->getCallTrace()]);
 							throw new InterruptSignal();
@@ -77,7 +77,7 @@ readonly class AsyncPromiseTask {
 				}
 			} catch (Throwable $err) {
 				if ($promise->getErrorHandler() !== null) {
-					$promise->getErrorHandler()(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), igbinary_serialize(\pocketmine\utils\Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
+					$promise->getErrorHandler()(AsyncExecutionException::wrap($err));
 				} else {
 					throw $err;
 				}

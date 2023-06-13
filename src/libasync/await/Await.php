@@ -8,10 +8,11 @@ use GlobalLogger;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncRuntime;
 use libasync\utils\Utils;
+use pocketmine\utils\Utils as PMMPUtils;
 use RuntimeException;
 
-class Await {
-	public function __construct() { }
+final class Await {
+	private function __construct() { }
 
 	/**
 	 * @template T
@@ -20,26 +21,26 @@ class Await {
 	 * @throws \libasync\exception\AsyncExecutionException
 	 */
 	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?EventLoop $loop = null) {
-		if ($loop === null) {
-			$loop = GlobalRuntime::getLoop();
-		}
-		if ($runtime === null) {
-			$runtime = GlobalRuntime::getRuntime();
-		}
-		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
-		$reci = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
+		$loop ??= GlobalRuntime::getLoop();
+		$runtime ??= GlobalRuntime::getRuntime();
 
-		$loop->add(static function($unsubscribe) use ($reci) : void {
-			if ($reci->isFinished()) {
+		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
+		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
+
+		$loop->add(static function($unsubscribe) use ($rec) : void {
+			if ($rec->isFinished()) {
 				$unsubscribe();
 			}
 		});
-		yield from $reci->awaitFinish();
-		if ($reci->getError() !== null) {
-			$reci->getError()->printWithCallTrace(GlobalLogger::get(), $callTrace);
-			throw new RuntimeException(Utils::printPromiseExceptionMessage($reci->getError()));
+
+		yield from $rec->awaitFinish();
+
+		if ($rec->getError() !== null) {
+			$rec->getError()->printWithCallTrace(GlobalLogger::get(), $callTrace);
+			throw new RuntimeException(Utils::printPromiseExceptionMessage($rec->getError()));
 		}
-		return $reci->getResult();
+
+		return $rec->getResult();
 	}
 
 	public static function sleep(int $sec) : Generator {
@@ -71,11 +72,11 @@ class Await {
 	}
 
 	public static function sync(callable $do, ?EventLoop $loop = null) {
-		$callTrace = Utils::smartSerialize(\pocketmine\utils\Utils::printableCurrentTrace());
+		$callTrace = Utils::smartSerialize(PMMPUtils::printableCurrentTrace());
 		if ($loop === null) {
 			$loop = GlobalRuntime::getLoop();
 		}
-		$aa = function() use ($do) {
+		$aa = static function() use ($do) {
 			$result = $do();
 			if (is_iterable($result)) {
 				yield from $result;
@@ -83,7 +84,7 @@ class Await {
 			yield AwaitSignal::SIG_FINISH;
 		};
 		$g = $aa();
-		$loop->add(static function($unsubscribe) use ($callTrace, $g, $aa) : void {
+		$loop->add(static function($unsubscribe) use ($callTrace, $g) : void {
 			for ($i = 0; $i < 2; $i++) {
 				if (!$g->valid()) {
 					break;
