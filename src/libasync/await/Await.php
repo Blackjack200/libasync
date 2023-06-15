@@ -58,6 +58,15 @@ final class Await {
 		}
 	}
 
+	public static function tick(Closure $do, int $tick, int $times) : Generator {
+		$c = true;
+		$cancel = static function() use (&$c) { $c = false;};
+		while ($times-- > 0 && $c) {
+			yield from self::usleep($tick * (1000 / 20));
+			$do($cancel);
+		}
+	}
+
 	public static function interrupt() : Generator {
 		while (true) {
 			yield AwaitSignal::SIG_INTERRUPT;
@@ -72,7 +81,7 @@ final class Await {
 	}
 
 	public static function sync(callable $do, ?EventLoop $loop = null) {
-		$callTrace = Utils::smartSerialize(PMMPUtils::printableCurrentTrace());
+		$callTrace = PMMPUtils::printableCurrentTrace();
 		if ($loop === null) {
 			$loop = GlobalRuntime::getLoop();
 		}

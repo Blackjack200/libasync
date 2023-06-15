@@ -55,9 +55,9 @@ final class Executor extends Thread implements AsyncRuntime {
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionReceipt {
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
 		$rec = new AsyncExecutionReceipt();
-		$rec->setCallTrace($callTrace ?? Utils::smartSerialize(PMMPUtils::printableCurrentTrace()));
+		$rec->setCallTrace($callTrace ?? PMMPUtils::printableCurrentTrace());
 		$this->queue->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$rec, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]));
 		$this->synchronized(fn() => $this->notify());
 		return $rec;

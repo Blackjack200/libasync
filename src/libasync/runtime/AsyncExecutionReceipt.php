@@ -58,14 +58,14 @@ class AsyncExecutionReceipt extends ThreadSafe {
 		}, $result);
 	}
 
-	public function setCallTrace(string $callTrace) : void {
-		$this->synchronized(function(string $callTrace) {
-			$this->callTrace = $callTrace;
+	public function setCallTrace(array $callTrace) : void {
+		$this->synchronized(function(array $callTrace) {
+			$this->callTrace = igbinary_serialize($callTrace);
 		}, $callTrace);
 	}
 
-	public function getCallTrace() : string {
-		return $this->synchronized(fn() => $this->callTrace);
+	public function getCallTrace() : array {
+		return $this->synchronized(fn() => igbinary_unserialize($this->callTrace));
 	}
 
 	public function awaitFinish() : Generator {

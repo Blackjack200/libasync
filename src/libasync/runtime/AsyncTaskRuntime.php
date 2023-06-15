@@ -12,9 +12,9 @@ class AsyncTaskRuntime implements AsyncRuntime {
 	) {
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionReceipt {
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
 		$rec = new AsyncExecutionReceipt();
-		$rec->setCallTrace($callTrace ?? \libasync\utils\Utils::smartSerialize(Utils::printableCurrentTrace()));
+		$rec->setCallTrace($callTrace ?? Utils::printableCurrentTrace());
 		$task = new AsyncExecutionTask($rec, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc);
 		$this->pool->submitTask($task);
 		return $rec;

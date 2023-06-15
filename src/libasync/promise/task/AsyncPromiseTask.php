@@ -25,55 +25,16 @@ readonly class AsyncPromiseTask {
 		Await::sync(static function() use ($runtime, $promise) {
 			try {
 				$call = $promise->getAsyncCall();
-				$ret = yield from Await::async(
-					static function(...$args) use ($call) {
-						$i = $args[2]();
-						assert($i instanceof AsyncExecutionReceipt);
-						unset($args[2]);
-						$arr = [];
-						foreach ($args as $arg) {
-							$arr[] = $arg;
-						}
-						try {
-							$ret = $call(...$arr);
-							if (!$i->isFinished()) {
-								$i->setResult([false, Utils::smartSerialize($ret), $i->getCallTrace()]);
-							}
-						} catch (Throwable $err) {
-							if (!($err instanceof InterruptSignal)) {
-								throw $err;
-							}
-						}
-						return Utils::smartSerialize($i->getResult());
-					},
-					$runtime,
-					static fn(AsyncExecutionReceipt $i) => [
-						static function(...$res) use ($i) : void {
-							$i->setResult([false, Utils::smartSerialize($res), $i->getCallTrace()]);
-							throw new InterruptSignal();
-						},
-						static function(...$reason) use ($i) : void {
-							$i->setResult([true, Utils::smartSerialize($reason), $i->getCallTrace()]);
-							throw new InterruptSignal();
-						},
-						static fn() => $i,
-					],
-				);
+				[$rejected, $result, $callTrace] = Utils::smartDeserialize(yield from self::promiseAsyncRun($call, $runtime));
+				$callTrace = Utils::smartDeserialize($callTrace);
+				$result = Utils::smartDeserialize($result);
 				try {
-					[$rejected, $result, $callTrace] = Utils::smartDeserialize($ret);
 					$c = $rejected ? $promise->getRejectedCallbacks() : $promise->getFulfillCallbacks();
-					$ff = Utils::smartDeserialize($result);
 					foreach ($c as $cl) {
-						$cl(...$ff);
+						$cl(...$result);
 					}
-				} catch (Throwable $thr) {
-					var_dump($ret);
-					\GlobalLogger::get()->critical(
-						"\n--- Call Stack trace ---\n" .
-						implode("\n", igbinary_unserialize($callTrace ?? igbinary_serialize([]))) .
-						"\n--- End of exception information ---"
-					);
-					throw $thr;
+				} catch (Throwable $err) {
+					AsyncExecutionException::wrap($err)->printWithCallTrace(\GlobalLogger::get(), $callTrace);
 				}
 			} catch (Throwable $err) {
 				if ($promise->getErrorHandler() !== null) {
@@ -83,5 +44,42 @@ readonly class AsyncPromiseTask {
 				}
 			}
 		});
+	}
+
+	private static function promiseAsyncRun(\Closure $call, ?AsyncRuntime $runtime) : \Generator {
+		return Await::async(
+			static function(...$args) use ($call) {
+				$i = $args[2]();
+				assert($i instanceof AsyncExecutionReceipt);
+				unset($args[2]);
+				$arr = [];
+				foreach ($args as $arg) {
+					$arr[] = $arg;
+				}
+				try {
+					$ret = $call(...$arr);
+					if (!$i->isFinished()) {
+						$i->setResult(ThreadSafeArray::fromArray([false, Utils::smartSerialize([$ret]), Utils::smartSerialize($i->getCallTrace())]));
+					}
+				} catch (Throwable $err) {
+					if (!($err instanceof InterruptSignal)) {
+						throw $err;
+					}
+				}
+				return Utils::smartSerialize($i->getResult());
+			},
+			$runtime,
+			static fn(AsyncExecutionReceipt $i) => [
+				static function(...$res) use ($i) : void {
+					$i->setResult(ThreadSafeArray::fromArray([false, Utils::smartSerialize($res), Utils::smartSerialize($i->getCallTrace())]));
+					throw new InterruptSignal();
+				},
+				static function(...$reason) use ($i) : void {
+					$i->setResult(ThreadSafeArray::fromArray([true, Utils::smartSerialize($reason), Utils::smartSerialize($i->getCallTrace())]));
+					throw new InterruptSignal();
+				},
+				static fn() => $i,
+			],
+		);
 	}
 }

@@ -10,5 +10,5 @@ interface AsyncRuntime {
 	 * @param null|Closure(AsyncExecutionReceipt):array $extraArgPrepareFunc
 	 * @param null|Closure(...$args):void $extraArgDestroyFunc
 	 */
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionReceipt;
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, array $callTrace = null) : AsyncExecutionReceipt;
 }

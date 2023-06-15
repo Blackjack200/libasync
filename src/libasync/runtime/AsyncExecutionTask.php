@@ -24,25 +24,24 @@ class AsyncExecutionTask extends AsyncTask {
 	public function onRun() : void {
 		try {
 			if ($this->extraArgPrepareFunc !== null) {
-				$args = ($this->extraArgPrepareFunc)($this->reci);
+				$args = ($this->extraArgPrepareFunc)($this->rec);
 			} else {
 				$args = [];
 			}
 			try {
 				$result = ($this->closure)(...$args);
-				$this->reci->setResult($result);
+				$this->rec->setResult($result);
 			} catch (Throwable $err) {
-				$this->setError($err);
+				$this->rec->setError(AsyncExecutionException::wrap($err));
 			}
 			if ($this->extraArgDestroyFunc !== null) {
 				($this->extraArgDestroyFunc)(...$args);
 			}
 		} catch (Throwable $err) {
-			$this->setError($err);
+			$this->rec->setError(AsyncExecutionException::wrap($err));
 		}
 	}
 
 	private function setError(Throwable $err) : void {
-		$this->reci->setError(AsyncExecutionException::wrap($err));
 	}
 }
