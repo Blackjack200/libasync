@@ -42,8 +42,8 @@ class Executor extends Thread implements AsyncRuntime {
 	}
 
 	protected function executeTasks(...$argsInjected) : void {
-		while ($this->queue->synchronized(fn() => $this->queue->count()) > 0) {
-			[$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc] = $this->queue->synchronized(fn() => $this->queue->shift());
+		while ($this->synchronized(fn() => $this->queue->count()) > 0) {
+			[$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc] = $this->synchronized(fn() => $this->queue->shift());
 			assert($reci instanceof AsyncExecutionRecipient && $closure instanceof Closure);
 			try {
 				if ($extraArgPrepareFunc !== null) {
@@ -95,7 +95,7 @@ class Executor extends Thread implements AsyncRuntime {
 	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionRecipient {
 		$reci = new AsyncExecutionRecipient();
 		$reci->setCallTrace($callTrace ?? \libasync\utils\Utils::smartSerialize(Utils::printableCurrentTrace()));
-		$this->queue->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]));
+		$this->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$reci, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]));
 		return $reci;
 	}
 }
