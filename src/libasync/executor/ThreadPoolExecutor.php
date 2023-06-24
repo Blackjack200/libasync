@@ -5,7 +5,7 @@ namespace libasync\executor;
 use Closure;
 use libasync\promise\PromiseInterface;
 use libasync\promise\task\AsyncPromiseTask;
-use libasync\runtime\AsyncExecutionRecipient;
+use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 
 class ThreadPoolExecutor implements AsyncRuntime {
@@ -47,7 +47,7 @@ class ThreadPoolExecutor implements AsyncRuntime {
 		AsyncPromiseTask::awaitRun($x, $this->threads[$this->counter]);
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?string $callTrace = null) : AsyncExecutionRecipient {
+	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
 		if (++$this->counter >= $this->threadCount) {
 			$this->counter = 0;
 		}

@@ -7,7 +7,6 @@ use libasync\utils\ThreadSafePrefixedLogger;
 use pmmp\thread\ThreadSafeArray;
 use pocketmine\Server;
 use pocketmine\thread\log\ThreadSafeLogger;
-use Volatile;
 
 class ThreadFactory {
 	private Closure $defer;

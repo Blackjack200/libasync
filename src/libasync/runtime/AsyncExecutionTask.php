@@ -12,37 +12,36 @@ use Throwable;
 class AsyncExecutionTask extends AsyncTask {
 
 	public function __construct(
-		private readonly AsyncExecutionRecipient $reci,
-		private readonly Closure                 $closure,
-		/** @var null|Closure(AsyncExecutionRecipient):array */
-		private readonly ?Closure                $extraArgPrepareFunc,
+		private readonly AsyncExecutionReceipt $rec,
+		private readonly Closure               $closure,
+		/** @var null|Closure(AsyncExecutionReceipt):array */
+		private readonly ?Closure              $extraArgPrepareFunc,
 		/** @var null|Closure(...$args):void */
-		private readonly ?Closure                $extraArgDestroyFunc,
+		private readonly ?Closure              $extraArgDestroyFunc,
 	) {
 	}
 
 	public function onRun() : void {
 		try {
 			if ($this->extraArgPrepareFunc !== null) {
-				$args = ($this->extraArgPrepareFunc)($this->reci);
+				$args = ($this->extraArgPrepareFunc)($this->rec);
 			} else {
 				$args = [];
 			}
 			try {
 				$result = ($this->closure)(...$args);
-				$this->reci->setResult($result);
+				$this->rec->setResult($result);
 			} catch (Throwable $err) {
-				$this->setError($err);
+				$this->rec->setError(AsyncExecutionException::wrap($err));
 			}
 			if ($this->extraArgDestroyFunc !== null) {
 				($this->extraArgDestroyFunc)(...$args);
 			}
 		} catch (Throwable $err) {
-			$this->setError($err);
+			$this->rec->setError(AsyncExecutionException::wrap($err));
 		}
 	}
 
 	private function setError(Throwable $err) : void {
-		$this->reci->setError(AsyncExecutionException::from(ThreadSafeArray::fromArray([$err::class, $err->getMessage(), igbinary_serialize(Utils::printableTrace($err->getTrace())), $err->getCode(), $err->getFile(), $err->getLine()])));
 	}
 }

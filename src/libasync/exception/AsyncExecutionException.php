@@ -4,26 +4,35 @@ namespace libasync\exception;
 
 use libasync\utils\Utils;
 use Logger;
-use pmmp\thread\ThreadSafeArray;
+use pocketmine\utils\Utils as PMMPUtils;
 use Throwable;
 
 final class AsyncExecutionException {
 	private function __construct(
 		protected string $class,
 		protected string $message,
-		protected string $trace,
+		protected string $traceSerialized,
 		protected int    $code,
 		protected string $file,
 		protected int    $line
 	) {
 	}
 
-	public static function from(ThreadSafeArray $arr) : self {
-		return new self(...$arr);
+	public static function from(
+		string $class,
+		string $message,
+		array  $trace,
+		int    $code,
+		string $file,
+		int    $line
+	) : self {
+		return new self(
+			$class, $message, igbinary_serialize($trace), $code, $file, $line
+		);
 	}
 
-	public static function wrap(Throwable $thr, ThreadSafeArray|array $trace) : self {
-		return new self($thr::class, $thr->getMessage(), igbinary_serialize($trace), $thr->getCode(), $thr->getFile(), $thr->getLine());
+	public static function wrap(Throwable $thr) : self {
+		return new self($thr::class, $thr->getMessage(), igbinary_serialize(PMMPUtils::printableTrace($thr->getTrace())), $thr->getCode(), $thr->getFile(), $thr->getLine());
 	}
 
 	public function is(string $class) : bool {
@@ -41,15 +50,16 @@ final class AsyncExecutionException {
 		}
 	}
 
-	public function printWithCallTrace(Logger $logger, string $callTrace) : void {
+	public function printWithCallTrace(Logger $logger, array $callTrace) : void {
 		$logger->critical(Utils::printPromiseExceptionMessage($this));
 		$logger->critical(
 			"\n--- Stack trace ---\n" .
 			implode("\n", $this->getTrace()) .
 			"\n--- End of exception information ---"
-		);$logger->critical(
+		);
+		$logger->critical(
 			"\n--- Call Stack trace ---\n" .
-			implode("\n", Utils::smartDeserialize($callTrace)) .
+			implode("\n", $callTrace) .
 			"\n--- End of exception information ---"
 		);
 	}
@@ -76,6 +86,6 @@ final class AsyncExecutionException {
 	}
 
 	public function getTrace() : array {
-		return igbinary_unserialize($this->trace);
+		return igbinary_unserialize($this->traceSerialized);
 	}
 }

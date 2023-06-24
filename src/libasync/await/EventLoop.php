@@ -18,11 +18,11 @@ class EventLoop extends ThreadSafe {
 		$d = $microsecond * 1000 * 1000;
 		$start = hrtime(true);
 		foreach ($this->callbacks as $k => $await) {
-			$await(function() use ($k) { $this->synchronized(function() use ($k) : void { unset($this->callbacks[$k]); }); });
 			$now = hrtime(true) - $start;
 			if ($now > $d) {
 				break;
 			}
+			$await(function() use ($k) { $this->synchronized(function() use ($k) : void { unset($this->callbacks[$k]); }); });
 		}
 	}
 
@@ -36,7 +36,9 @@ class EventLoop extends ThreadSafe {
 	}
 
 	public function busy() : bool {
-		return count($this->callbacks) !== 0;
+		return $this->synchronized(function() {
+			return count($this->callbacks) !== 0;
+		});
 	}
 
 	public function doOnce(Closure $c) : void {
