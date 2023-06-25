@@ -15,15 +15,17 @@ class EventLoop extends ThreadSafe {
 	}
 
 	public function poll(int $microsecond = PHP_INT_MAX) : void {
-		$d = $microsecond * 1000 * 1000;
-		$start = hrtime(true);
-		foreach ($this->callbacks as $k => $await) {
-			$now = hrtime(true) - $start;
-			if ($now > $d) {
-				break;
+		$this->synchronized(function() use ($microsecond) : void {
+			$d = $microsecond * 1000 * 1000;
+			$start = hrtime(true);
+			foreach ($this->callbacks as $k => $await) {
+				$now = hrtime(true) - $start;
+				if ($now > $d) {
+					break;
+				}
+				$await(function() use ($k) { $this->synchronized(function() use ($k) : void { unset($this->callbacks[$k]); }); });
 			}
-			$await(function() use ($k) { $this->synchronized(function() use ($k) : void { unset($this->callbacks[$k]); }); });
-		}
+		});
 	}
 
 	/**

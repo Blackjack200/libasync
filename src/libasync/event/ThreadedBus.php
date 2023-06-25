@@ -20,17 +20,21 @@ class ThreadedBus extends ThreadSafe implements BusInterface {
 	}
 
 	public function process() : void {
-		$this->buffer->synchronized(function() : void {
-			$this->handler->synchronized(function() : void {
+		$pending = [];
+		$this->buffer->synchronized(function() use (&$pending) : void {
+			$this->handler->synchronized(function() use (&$pending) : void {
 				while ($this->buffer->count() > 0) {
 					$buf = $this->buffer->pop();
 					$val = igbinary_unserialize($buf);
 					foreach ($this->handler[get_debug_type($val)] ?? [] as $handler) {
-						$handler($val);
+						$pending[] = [$handler,$val];
 					}
 				}
 			});
 		});
+		foreach ($pending as [$handler, $val]) {
+			$handler($val);
+		}
 	}
 
 	/**

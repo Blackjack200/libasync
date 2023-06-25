@@ -16,17 +16,21 @@ class ThreadedTopicBus extends ThreadSafe {
 	}
 
 	public function process() : void {
-		$this->buffer->synchronized(function() : void {
-			$this->handler->synchronized(function() : void {
+		$pending = [];
+		$this->buffer->synchronized(function() use (&$pending) : void {
+			$this->handler->synchronized(function() use (&$pending) : void {
 				while ($this->buffer->count() > 0) {
 					$buf = $this->buffer->pop();
 					[$topic, $val] = igbinary_unserialize($buf);
 					foreach ($this->handler[$topic] ?? [] as $handler) {
-						$handler(...$val);
+						$pending[] = [$handler, $val];
 					}
 				}
 			});
 		});
+		foreach ($pending as [$handler, $val]) {
+			$handler(...$val);
+		}
 	}
 
 	public function subscribe(string $topic, Closure $handler) : void {
