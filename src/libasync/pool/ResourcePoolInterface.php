@@ -18,8 +18,9 @@ interface ResourcePoolInterface {
 	/**
 	 * @param Closure():(T|null) $prepareFunc
 	 * @param Closure(T):void $freeFunc
+	 * @param Closure(T,Closure(T):void $push):void $recycleFunc
 	 */
-	public function register(string $type, Closure $prepareFunc, Closure $freeFunc) : void;
+	public function register(string $type, Closure $prepareFunc, Closure $freeFunc, Closure $recycleFunc) : void;
 
 	public function close() : void;
 }

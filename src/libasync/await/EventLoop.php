@@ -15,17 +15,21 @@ class EventLoop extends ThreadSafe {
 	}
 
 	public function poll(int $microsecond = PHP_INT_MAX) : void {
-		$this->synchronized(function() use ($microsecond) : void {
-			$d = $microsecond * 1000 * 1000;
-			$start = hrtime(true);
+		$pending = [];
+		$this->synchronized(function() use (&$pending) : void {
 			foreach ($this->callbacks as $k => $await) {
-				$now = hrtime(true) - $start;
-				if ($now > $d) {
-					break;
-				}
-				$await(function() use ($k) { $this->synchronized(function() use ($k) : void { unset($this->callbacks[$k]); }); });
+				$pending[] = fn() => $await(function() use ($k) { $this->synchronized(function() use ($k) : void { unset($this->callbacks[$k]); }); });
 			}
 		});
+		$d = $microsecond * 1000 * 1000;
+		$start = hrtime(true);
+		foreach ($pending as $await) {
+			$now = hrtime(true) - $start;
+			if ($now > $d) {
+				break;
+			}
+			$await();
+		}
 	}
 
 	/**
@@ -40,15 +44,6 @@ class EventLoop extends ThreadSafe {
 	public function busy() : bool {
 		return $this->synchronized(function() {
 			return count($this->callbacks) !== 0;
-		});
-	}
-
-	public function doOnce(Closure $c) : void {
-		$this->synchronized(function() use ($c) : void {
-			$this->callbacks[] = static function($un) use ($c) {
-				$un();
-				$c();
-			};
 		});
 	}
 }

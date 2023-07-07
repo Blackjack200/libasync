@@ -11,15 +11,15 @@ use libasync\utils\ResourceRef;
  * @implements ResourcePoolInterface<T>
  */
 class AsyncResourcePool implements ResourcePoolInterface {
-	/** @var array<string, array{0:\Closure():(T|null), 1:\Closure(T):void} */
+	/** @var array<string, array{0:\Closure():(T|null), 1:\Closure(T):void, 2:Closure(T,Closure(T):void $push):void} */
 	private array $types = [];
 	private array $resources = [];
 
 	/**
 	 * @inheritDoc
 	 */
-	public function register(string $type, Closure $prepareFunc, Closure $freeFunc) : void {
-		$this->types[$type] = [$prepareFunc, $freeFunc];
+	public function register(string $type, Closure $prepareFunc, Closure $freeFunc, Closure $recycleFunc) : void {
+		$this->types[$type] = [$prepareFunc, $freeFunc, $recycleFunc];
 		$this->resources[$type] = [];
 		$this->prepare($type, 3);
 	}
@@ -28,12 +28,11 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		$prepareFunc = $this->types[$type][0];
 		Await::sync(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
-				$rawRes = yield from Await::async($prepareFunc);
+				$rawRes = yield from $prepareFunc();
 				$this->resources[$type][] = $rawRes;
-				yield from Await::sleep(3);
+				yield from Await::sleep(1);
 			}
 		});
-
 	}
 
 	public function isRegistered(string $type) : bool { return isset($this->types[$type]); }
@@ -48,7 +47,18 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		}
 		$res = array_pop($this->resources[$type]);
 		$this->prepare($type, 1);
-		return new ResourceRef($res, $this->types[$type][1]);
+		$userRecycle = $this->types[$type][2];
+		$push = fn($res) => $this->resources[$type][] = $res;
+
+		return new ResourceRef($res, $this->types[$type][1], static function($res) use ($push, $userRecycle) : bool {
+			$pushed = false;
+			$realPush = static function($res) use ($push, &$pushed) {
+				$pushed = true;
+				$push($res);
+			};
+			$userRecycle($res, $realPush);
+			return $pushed;
+		});
 	}
 
 	public function close() : void {

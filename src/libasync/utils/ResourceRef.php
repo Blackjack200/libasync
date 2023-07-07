@@ -13,8 +13,9 @@ class ResourceRef {
 	 * @param Closure(T):void $freeFunc
 	 */
 	public function __construct(
-		private mixed   $val,
-		private Closure $freeFunc
+		private readonly mixed   $val,
+		private readonly Closure $freeFunc,
+		private readonly Closure $recycleFunc
 	) {
 	}
 
@@ -22,5 +23,9 @@ class ResourceRef {
 
 	public function free() : void {
 		($this->freeFunc)($this->val, false);
+	}
+
+	public function recycle() : bool {
+		return ($this->recycleFunc)($this->val);
 	}
 }
