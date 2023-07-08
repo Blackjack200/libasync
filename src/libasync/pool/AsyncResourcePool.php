@@ -14,6 +14,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	/** @var array<string, array{0:\Closure():(T|null), 1:\Closure(T):void, 2:Closure(T,Closure(T):void $push):void} */
 	private array $types = [];
 	private array $resources = [];
+	private array $queued = [];
 
 	/**
 	 * @inheritDoc
@@ -21,15 +22,18 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	public function register(string $type, Closure $prepareFunc, Closure $freeFunc, Closure $recycleFunc) : void {
 		$this->types[$type] = [$prepareFunc, $freeFunc, $recycleFunc];
 		$this->resources[$type] = [];
-		$this->prepare($type, 3);
+		$this->queued[$type] = 0;
+		$this->prepare($type, 5);
 	}
 
 	private function prepare(string $type, int $count) : void {
 		$prepareFunc = $this->types[$type][0];
+		$this->queued[$type] += $count;
 		Await::sync(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
 				$rawRes = yield from $prepareFunc();
 				$this->resources[$type][] = $rawRes;
+				$this->queued[$type]--;
 				yield from Await::sleep(1);
 			}
 		});
@@ -41,12 +45,18 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		if (!isset($this->resources[$type])) {
 			return null;
 		}
-		if (count($this->resources[$type]) === 0) {
+		$resourceCount = $this->queued[$type] + count($this->resources[$type]);
+		if ($resourceCount === 0) {
 			$this->prepare($type, 5);
 			return null;
 		}
+		if (count($this->resources[$type]) === 0) {
+			return null;
+		}
+		if ($resourceCount <= 5) {
+			$this->prepare($type, 5 - $resourceCount);
+		}
 		$res = array_pop($this->resources[$type]);
-		$this->prepare($type, 1);
 		$userRecycle = $this->types[$type][2];
 		$push = fn($res) => $this->resources[$type][] = $res;
 
@@ -68,5 +78,12 @@ class AsyncResourcePool implements ResourcePoolInterface {
 				$free($res, true);
 			}
 		}
+	}
+
+	public function put(string $type, $resource) : void {
+		if (!isset($this->resources[$type])) {
+			throw new \InvalidArgumentException("Resource type $type is not registered");
+		}
+		$this->resources[$type][] = $resource;
 	}
 }

@@ -20,9 +20,12 @@ final class Await {
 	 * @return T
 	 * @throws \libasync\exception\AsyncExecutionException
 	 */
-	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?EventLoop $loop = null) {
+	public static function async(Generator|Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?EventLoop $loop = null) {
 		$loop ??= GlobalRuntime::getLoop();
 		$runtime ??= GlobalRuntime::getRuntime();
+		if($do instanceof Generator){
+			$do = static fn() => yield from $do;
+		}
 
 		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
 		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
