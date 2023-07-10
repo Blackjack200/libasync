@@ -4,6 +4,7 @@ namespace libasync\pool;
 
 use Closure;
 use libasync\await\Await;
+use libasync\await\AwaitResult;
 use libasync\utils\ResourceRef;
 
 /**
@@ -23,20 +24,19 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		$this->types[$type] = [$prepareFunc, $freeFunc, $recycleFunc];
 		$this->resources[$type] = [];
 		$this->queued[$type] = 0;
-		$this->prepare($type, 5);
 	}
 
-	private function prepare(string $type, int $count) : void {
+	private function prepare(string $type, int $count) : AwaitResult {
 		$prepareFunc = $this->types[$type][0];
 		$this->queued[$type] += $count;
-		Await::do(function() use ($count, $type, $prepareFunc) {
+		return Await::do(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
 				$rawRes = yield from $prepareFunc();
 				$this->resources[$type][] = $rawRes;
 				$this->queued[$type]--;
 				yield from Await::sleep(1);
 			}
-		})->panic();
+		});
 	}
 
 	public function isRegistered(string $type) : bool { return isset($this->types[$type]); }
