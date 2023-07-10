@@ -29,14 +29,14 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	private function prepare(string $type, int $count) : void {
 		$prepareFunc = $this->types[$type][0];
 		$this->queued[$type] += $count;
-		Await::sync(function() use ($count, $type, $prepareFunc) {
+		Await::do(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
 				$rawRes = yield from $prepareFunc();
 				$this->resources[$type][] = $rawRes;
 				$this->queued[$type]--;
 				yield from Await::sleep(1);
 			}
-		});
+		})->panic();
 	}
 
 	public function isRegistered(string $type) : bool { return isset($this->types[$type]); }

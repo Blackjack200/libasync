@@ -15,6 +15,11 @@ class AsyncLoader extends PluginBase {
 
 	protected function onLoad() : void {
 		self::$instance = $this;
+
+		if (!defined('bootstrap\PRODUCTION')) {
+			define('bootstrap\PRODUCTION', false);
+		}
+
 		$lp = new EventLoop();
 		GlobalRuntime::setRuntime(new AsyncTaskRuntime($this->getServer()->getAsyncPool()));
 		GlobalRuntime::setLoop($lp);

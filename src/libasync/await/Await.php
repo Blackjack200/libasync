@@ -23,7 +23,7 @@ final class Await {
 	public static function async(Generator|Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?EventLoop $loop = null) {
 		$loop ??= GlobalRuntime::getLoop();
 		$runtime ??= GlobalRuntime::getRuntime();
-		if($do instanceof Generator){
+		if ($do instanceof Generator) {
 			$do = static fn() => yield from $do;
 		}
 
@@ -63,7 +63,7 @@ final class Await {
 
 	public static function tick(Closure $do, int $tick, int $times) : Generator {
 		$c = true;
-		$cancel = static function() use (&$c) { $c = false;};
+		$cancel = static function() use (&$c) { $c = false; };
 		while ($times-- > 0 && $c) {
 			yield from self::usleep($tick * (1000 / 20));
 			$do($cancel);
@@ -76,23 +76,31 @@ final class Await {
 		}
 	}
 
-	public static function do(Generator|callable $do, ?EventLoop $loop = null) {
-		if ($do instanceof Generator) {
-			$do = static fn() => yield from $do;
+	public static function do(Generator|Closure $generator, ?EventLoop $loop = null) : AwaitResult {
+		if ($generator instanceof Generator) {
+			$generator = static fn() => $generator;
 		}
-		self::sync($do, $loop);
+
+		$func = static function(Closure $do) use ($generator) : Generator {
+			try {
+				yield from $generator();
+			} catch (\Throwable $thr) {
+				$do($thr);
+			}
+		};
+		return new AwaitResult($func, static fn(Generator $g) => self::sync($g, $loop));
 	}
 
-	public static function sync(callable $do, ?EventLoop $loop = null) {
+	/**
+	 * @internal
+	 */
+	private static function sync(Generator $do, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
 		if ($loop === null) {
 			$loop = GlobalRuntime::getLoop();
 		}
 		$aa = static function() use ($do) {
-			$result = $do();
-			if (is_iterable($result)) {
-				yield from $result;
-			}
+			yield from $do;
 			yield AwaitSignal::SIG_FINISH;
 		};
 		$g = $aa();
