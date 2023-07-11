@@ -2,7 +2,8 @@
 
 namespace libasync\await;
 
-use Generator;
+use libasync\exception\AsyncExceptionWrapped;
+use pocketmine\command\CommandSender;
 use pocketmine\utils\Utils;
 use const bootstrap\PRODUCTION;
 
@@ -11,15 +12,15 @@ class AwaitResult {
 	private bool $errorHandled = false;
 
 	/**
-	 * @param \Closure(Generator):void $do
+	 * @param \Closure(\Closure):void $do
 	 */
 	public function __construct(
 		private readonly \Closure $innerGenerator,
 		private readonly \Closure $do,
 	) {
 		if (!PRODUCTION) {
-			Utils::validateCallableSignature(static function(\Closure $do) : Generator { }, $innerGenerator);
-			Utils::validateCallableSignature(static function(Generator $g) { }, $do);
+			Utils::validateCallableSignature(static function(\Closure $do) : void { }, $innerGenerator);
+			Utils::validateCallableSignature(static function(\Closure $g) { }, $do);
 		}
 		$this->stackTrace = Utils::printableCurrentTrace();
 	}
@@ -39,7 +40,8 @@ class AwaitResult {
 					implode("\n", $this->stackTrace) .
 					"\n--- End of exception information ---"
 				);
-				throw new \RuntimeException("Ignored await call");
+				$this->panic();
+				//throw new \RuntimeException("Ignored await call");
 			}
 		}
 	}
@@ -62,6 +64,27 @@ class AwaitResult {
 	 */
 	public function logError() : void {
 		$this->errorHandled = true;
-		($this->do)(($this->innerGenerator)(static fn(\Throwable $thr) => \GlobalLogger::get()->logException($thr)));
+		($this->do)(($this->innerGenerator)(static function(\Throwable $thr) : void {
+			if (!$thr instanceof AsyncExceptionWrapped) {
+				\GlobalLogger::get()->logException($thr);
+			} else {
+				$thr->printWithCallTrace(\GlobalLogger::get());
+			}
+		}));
+	}
+
+	public function logErrorWithSender(CommandSender $sender, ?\Closure $do = null) : void {
+		$this->errorHandled = true;
+		($this->do)(($this->innerGenerator)(static function(\Throwable $thr) use ($do, $sender) {
+			\GlobalLogger::get()->logException($thr);
+			try {
+				$sender->sendMessage("§cAwait errored.");
+			} catch (AsyncExceptionWrapped $thr) {
+				$thr->printWithCallTrace(\GlobalLogger::get());
+			} catch (\Throwable $thr) {
+				\GlobalLogger::get()->logException($thr);
+			}
+			$do($thr);
+		}));
 	}
 }

@@ -3,126 +3,121 @@
 namespace libasync\await;
 
 use Closure;
-use Generator;
-use GlobalLogger;
+use DaveRandom\CallbackValidator\CallbackType;
+use DaveRandom\CallbackValidator\ReturnType;
+use libasync\exception\AsyncExceptionWrapped;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncRuntime;
-use libasync\utils\Utils;
 use pocketmine\utils\Utils as PMMPUtils;
-use RuntimeException;
+use const bootstrap\PRODUCTION;
 
 final class Await {
 	private function __construct() { }
 
-	/**
-	 * @template T
-	 * @param Closure():T $do
-	 * @return T
-	 * @throws \libasync\exception\AsyncExecutionException
-	 */
-	public static function async(Generator|Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?EventLoop $loop = null) {
-		$loop ??= GlobalRuntime::getLoop();
-		$runtime ??= GlobalRuntime::getRuntime();
-		if ($do instanceof Generator) {
-			$do = static fn() => yield from $do;
-		}
-
-		$callTrace = yield AwaitSignal::SIG_SET_TRACE;
-		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
-
-		$loop->add(static function($unsubscribe) use ($rec) : void {
-			if ($rec->isFinished()) {
-				$unsubscribe();
-			}
-		});
-
-		yield from $rec->awaitFinish();
-
-		if ($rec->getError() !== null) {
-			$rec->getError()->printWithCallTrace(GlobalLogger::get(), $callTrace);
-			throw new RuntimeException(Utils::printPromiseExceptionMessage($rec->getError()));
-		}
-
-		return $rec->getResult();
+	public static function sleep(int $sec) : void {
+		self::usleep($sec * 1000);
 	}
 
-	public static function sleep(int $sec) : Generator {
-		yield from self::usleep($sec * 1000);
+	public static function usleep(int $microseconds) : void {
+		self::nsleep($microseconds * 1000 * 1000);
 	}
 
-	public static function usleep(int $microseconds) : Generator {
-		yield from self::nsleep($microseconds * 1000 * 1000);
-	}
-
-	public static function nsleep(int $nanoseconds) : Generator {
+	public static function nsleep(int $nanoseconds) : void {
 		$targetTime = hrtime(true) + $nanoseconds;
 		while (hrtime(true) < $targetTime) {
-			yield AwaitSignal::SIG_WAIT;
+			\Fiber::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
 
-	public static function tick(Closure $do, int $tick, int $times) : Generator {
+	public static function tick(Closure $do, int $tick, int $times) : void {
 		$c = true;
 		$cancel = static function() use (&$c) { $c = false; };
 		while ($times-- > 0 && $c) {
-			yield from self::usleep($tick * (1000 / 20));
+			self::usleep($tick * (1000 / 20));
 			$do($cancel);
 		}
 	}
 
-	public static function interrupt() : Generator {
+	public static function interrupt() : void {
 		while (true) {
-			yield AwaitSignal::SIG_INTERRUPT;
+			\Fiber::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
 
-	public static function do(Generator|Closure $generator, ?EventLoop $loop = null) : AwaitResult {
-		if ($generator instanceof Generator) {
-			$generator = static fn() => $generator;
-		}
+	/**
+	 * @template T
+	 * @param Closure(...$args):T $do
+	 * @return T
+	 * @throws \libasync\exception\AsyncExceptionWrapped
+	 */
+	public static function fiberAsync(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) {
+		$runtime ??= GlobalRuntime::getRuntime();
 
-		$func = static function(Closure $do) use ($generator) : Generator {
-			try {
-				yield from $generator();
-			} catch (\Throwable $thr) {
-				$do($thr);
-			}
-		};
-		return new AwaitResult($func, static fn(Generator $g) => self::sync($g, $loop));
+		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
+		$rec->suspendWait();
+
+		\Fiber::suspend(AwaitSignal::SIG_EXCEPTION);
+		\Fiber::suspend($rec->getCallTrace());
+		\Fiber::suspend($rec->getError());
+		return $rec->getResult();
+	}
+
+	public static function fiberAsync2(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) {
+		return self::fiberAsync($do, $runtime, $extraArgPrepareFunc, $extraArgDestroyFunc);
+	}
+
+	public static function fiberSync2(Closure $do, ?EventLoop $loop = null) : void {
+		self::fiberSync($do, $loop);
 	}
 
 	/**
 	 * @internal
 	 */
-	private static function sync(Generator $do, ?EventLoop $loop = null) : void {
+	public static function fiberSync(Closure $do, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
-		if ($loop === null) {
-			$loop = GlobalRuntime::getLoop();
+		$loop ??= GlobalRuntime::getLoop();
+		if (!PRODUCTION) {
+			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $do);
 		}
-		$aa = static function() use ($do) {
-			yield from $do;
-			yield AwaitSignal::SIG_FINISH;
-		};
-		$g = $aa();
-		$loop->add(static function($unsubscribe) use ($callTrace, $g) : void {
+		$fiber = new \Fiber(static function() use ($do) : void {
+			$do();
+			\Fiber::suspend(AwaitSignal::SIG_FINISH);
+		});
+		$fiber->start();
+		$loop->add(static function($unsubscribe) use ($callTrace, $fiber) : void {
 			for ($i = 0; $i < 2; $i++) {
-				if (!$g->valid()) {
-					break;
-				}
-				$d = $g->current();
+				$d = $fiber->resume();
 				switch ($d) {
 					case AwaitSignal::SIG_SET_TRACE:
-						$g->send($callTrace);
+						$fiber->resume($callTrace);
 						break;
 					case AwaitSignal::SIG_WAIT:
+						break;
+					case AwaitSignal::SIG_EXCEPTION:
+						$callTrace = $fiber->resume();
+						$exp = $fiber->resume();
+						if ($exp !== null) {
+							$fiber->throw(new AsyncExceptionWrapped($exp, $callTrace));
+						}
 						break;
 					case AwaitSignal::SIG_FINISH:
 					case AwaitSignal::SIG_INTERRUPT:
 						$unsubscribe();
 						break 2;
 				}
-				$g->next();
 			}
 		});
+	}
+
+
+	public static function do(Closure $do, ?EventLoop $loop = null) : AwaitResult {
+		$func = static function(Closure $d) use ($do) : void {
+			try {
+				$d();
+			} catch (\Throwable $thr) {
+				$do($thr);
+			}
+		};
+		return new AwaitResult($func, static fn(Closure $do) => self::fiberSync($do, $loop));
 	}
 }

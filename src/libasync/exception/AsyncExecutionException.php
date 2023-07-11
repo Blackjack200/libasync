@@ -2,8 +2,10 @@
 
 namespace libasync\exception;
 
-use libasync\utils\Utils;
+use InvalidArgumentException;
 use Logger;
+use pocketmine\errorhandler\ErrorTypeToStringMap;
+use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
 use Throwable;
 
@@ -43,27 +45,33 @@ final class AsyncExecutionException {
 		return 'Nop';
 	}
 
-	public function print(Logger $logger) : void {
-		$logger->critical(Utils::printPromiseExceptionMessage($this));
-		foreach ($this->getTrace() as $line) {
-			$logger->critical($line);
+	public static function printPromiseExceptionMessage(AsyncExecutionException $e) : string {
+		$errstr = preg_replace('/\s+/', ' ', trim($e->getMessage()));
+
+		$errno = $e->getCode();
+		if (is_int($errno)) {
+			try {
+				$errno = ErrorTypeToStringMap::get($errno);
+			} catch (InvalidArgumentException) {
+				//pass
+			}
 		}
+
+		$errfile = Filesystem::cleanPath($e->getFile());
+		$errline = $e->getLine();
+
+		return $e->getClass() . ": \"$errstr\" ($errno) in \"$errfile\" at line $errline";
 	}
 
-	public function printWithCallTrace(Logger $logger, array $callTrace) : void {
-		$logger->critical(Utils::printPromiseExceptionMessage($this));
+	public function printWithCallTrace(array $callTrace, ?Logger $logger = null) : void {
+		$logger ??= \GlobalLogger::get();
+		$logger->critical(self::printPromiseExceptionMessage($this));
 		$logger->critical(
 			"\n--- Stack trace ---\n" .
-			implode("\n", $this->getTrace()) .
-			"\n--- End of exception information ---"
-		);
-		$logger->critical(
-			"\n--- Call Stack trace ---\n" .
 			implode("\n", $callTrace) .
 			"\n--- End of exception information ---"
 		);
 	}
-
 
 	public function getMessage() : string {
 		return $this->message;

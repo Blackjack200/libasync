@@ -2,6 +2,7 @@
 
 namespace libasync;
 
+use libasync\await\Await;
 use libasync\await\EventLoop;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncTaskRuntime;

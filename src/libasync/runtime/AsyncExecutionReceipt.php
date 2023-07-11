@@ -68,9 +68,15 @@ class AsyncExecutionReceipt extends ThreadSafe {
 		return $this->synchronized(fn() => igbinary_unserialize($this->callTrace));
 	}
 
-	public function awaitFinish() : Generator {
+	public function yieldWait() : Generator {
 		while (!$this->isFinished()) {
 			yield AwaitSignal::SIG_WAIT;
+		}
+	}
+
+	public function suspendWait() : void {
+		while (!$this->isFinished()) {
+			\Fiber::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
 }

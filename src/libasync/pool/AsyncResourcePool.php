@@ -26,15 +26,15 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		$this->queued[$type] = 0;
 	}
 
-	private function prepare(string $type, int $count) : AwaitResult {
+	private function prepare(string $type, int $count) : void {
 		$prepareFunc = $this->types[$type][0];
 		$this->queued[$type] += $count;
-		return Await::do(function() use ($count, $type, $prepareFunc) {
+		Await::fiberSync2(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
-				$rawRes = yield from $prepareFunc();
+				$rawRes = $prepareFunc();
 				$this->resources[$type][] = $rawRes;
 				$this->queued[$type]--;
-				yield from Await::sleep(1);
+				Await::sleep(1);
 			}
 		});
 	}
