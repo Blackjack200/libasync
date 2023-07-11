@@ -86,24 +86,29 @@ final class Await {
 		$fiber->start();
 		$loop->add(static function($unsubscribe) use ($callTrace, $fiber) : void {
 			for ($i = 0; $i < 2; $i++) {
-				$d = $fiber->resume();
-				switch ($d) {
-					case AwaitSignal::SIG_SET_TRACE:
-						$fiber->resume($callTrace);
-						break;
-					case AwaitSignal::SIG_WAIT:
-						break;
-					case AwaitSignal::SIG_EXCEPTION:
-						$callTrace = $fiber->resume();
-						$exp = $fiber->resume();
-						if ($exp !== null) {
-							$fiber->throw(new AsyncExceptionWrapped($exp, $callTrace));
-						}
-						break;
-					case AwaitSignal::SIG_FINISH:
-					case AwaitSignal::SIG_INTERRUPT:
-						$unsubscribe();
-						break 2;
+				try {
+					$d = $fiber->resume();
+					switch ($d) {
+						case AwaitSignal::SIG_SET_TRACE:
+							$fiber->resume($callTrace);
+							break;
+						case AwaitSignal::SIG_WAIT:
+							break;
+						case AwaitSignal::SIG_EXCEPTION:
+							$callTrace = $fiber->resume();
+							$exp = $fiber->resume();
+							if ($exp !== null) {
+								$fiber->throw(new AsyncExceptionWrapped($exp, $callTrace));
+							}
+							break;
+						case AwaitSignal::SIG_FINISH:
+						case AwaitSignal::SIG_INTERRUPT:
+							$unsubscribe();
+							break 2;
+					}
+				} catch (AsyncExceptionWrapped $thr) {
+					$thr->printWithCallTrace(\GlobalLogger::get());
+					throw new \RuntimeException('async execution error');
 				}
 			}
 		});
