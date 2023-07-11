@@ -26,10 +26,10 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		$this->queued[$type] = 0;
 	}
 
-	private function prepare(string $type, int $count) : void {
+	public function prepare(string $type, int $count) : AwaitResult {
 		$prepareFunc = $this->types[$type][0];
 		$this->queued[$type] += $count;
-		Await::fiberSync2(function() use ($count, $type, $prepareFunc) {
+		return Await::do(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
 				$rawRes = $prepareFunc();
 				$this->resources[$type][] = $rawRes;
@@ -47,14 +47,14 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		}
 		$resourceCount = $this->queued[$type] + count($this->resources[$type]);
 		if ($resourceCount === 0) {
-			$this->prepare($type, 5);
+			$this->prepare($type, 5)->panic();
 			return null;
 		}
 		if (count($this->resources[$type]) === 0) {
 			return null;
 		}
 		if ($resourceCount <= 5) {
-			$this->prepare($type, 5 - $resourceCount);
+			$this->prepare($type, 5 - $resourceCount)->panic();
 		}
 		$res = array_pop($this->resources[$type]);
 		$userRecycle = $this->types[$type][2];

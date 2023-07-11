@@ -6,6 +6,7 @@ use Closure;
 use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
 use libasync\exception\AsyncExceptionWrapped;
+use libasync\exception\AsyncExecutionException;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncRuntime;
 use pocketmine\utils\Utils as PMMPUtils;
@@ -66,20 +67,17 @@ final class Await {
 		return self::fiberAsync($do, $runtime, $extraArgPrepareFunc, $extraArgDestroyFunc);
 	}
 
-	public static function fiberSync2(Closure $do, ?EventLoop $loop = null) : void {
-		self::fiberSync($do, $loop);
-	}
-
 	/**
 	 * @internal
 	 */
-	public static function fiberSync(Closure $do, ?EventLoop $loop = null) : void {
+	private static function fiberSync(Closure $do, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
 		$loop ??= GlobalRuntime::getLoop();
 		if (!PRODUCTION) {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $do);
 		}
 		$fiber = new \Fiber(static function() use ($do) : void {
+			\Fiber::suspend(AwaitSignal::SIG_WAIT);
 			$do();
 			\Fiber::suspend(AwaitSignal::SIG_FINISH);
 		});
@@ -87,6 +85,9 @@ final class Await {
 		$loop->add(static function($unsubscribe) use ($callTrace, $fiber) : void {
 			for ($i = 0; $i < 2; $i++) {
 				try {
+					if (!$fiber->isSuspended()) {
+						continue;
+					}
 					$d = $fiber->resume();
 					switch ($d) {
 						case AwaitSignal::SIG_SET_TRACE:
@@ -109,6 +110,9 @@ final class Await {
 				} catch (AsyncExceptionWrapped $thr) {
 					$thr->printWithCallTrace(\GlobalLogger::get());
 					throw new \RuntimeException('async execution error');
+				} catch (\Throwable $thr) {
+					AsyncExecutionException::wrap($thr)->printWithCallTrace($callTrace);
+					throw $thr;
 				}
 			}
 		});
@@ -118,11 +122,11 @@ final class Await {
 	public static function do(Closure $do, ?EventLoop $loop = null) : AwaitResult {
 		$func = static function(Closure $d) use ($do) : void {
 			try {
-				$d();
+				$do();
 			} catch (\Throwable $thr) {
-				$do($thr);
+				$d($thr);
 			}
 		};
-		return new AwaitResult($func, static fn(Closure $do) => self::fiberSync($do, $loop));
+		return new AwaitResult($func, static fn(Closure $dd) => self::fiberSync($dd, $loop));
 	}
 }

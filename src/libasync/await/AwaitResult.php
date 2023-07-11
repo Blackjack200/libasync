@@ -26,29 +26,12 @@ class AwaitResult {
 	}
 
 	public function __destruct() {
-		if (!$this->errorHandled) {
-			if (PRODUCTION) {
-				\GlobalLogger::get()->debug(
-					"\n--- Await Start ---\n" .
-					implode("\n", $this->stackTrace) .
-					"\n--- End of exception information ---"
-				);
-				$this->panic();
-			} else {
-				\GlobalLogger::get()->error(
-					"\n--- Await Start ---\n" .
-					implode("\n", $this->stackTrace) .
-					"\n--- End of exception information ---"
-				);
-				$this->panic();
-				//throw new \RuntimeException("Ignored await call");
-			}
-		}
+
 	}
 
 	public function error(\Closure $do) : void {
 		$this->errorHandled = true;
-		($this->do)(($this->innerGenerator)($do));
+		($this->do)(fn() => ($this->innerGenerator)($do));
 	}
 
 	/**
@@ -56,26 +39,29 @@ class AwaitResult {
 	 */
 	public function panic() : void {
 		$this->errorHandled = true;
-		($this->do)(($this->innerGenerator)(static fn(\Throwable $thr) => throw $thr));
+		($this->do)(fn() => ($this->innerGenerator)(static fn(\Throwable $thr) => throw $thr));
 	}
 
 	/**
 	 * @see self::panic()
 	 */
-	public function logError() : void {
+	public function logError(?\Closure $do = null) : void {
 		$this->errorHandled = true;
-		($this->do)(($this->innerGenerator)(static function(\Throwable $thr) : void {
+		($this->do)(fn() => ($this->innerGenerator)(static function(\Throwable $thr) use ($do) : void {
 			if (!$thr instanceof AsyncExceptionWrapped) {
 				\GlobalLogger::get()->logException($thr);
 			} else {
 				$thr->printWithCallTrace(\GlobalLogger::get());
+			}
+			if ($do !== null) {
+				$do($thr);
 			}
 		}));
 	}
 
 	public function logErrorWithSender(CommandSender $sender, ?\Closure $do = null) : void {
 		$this->errorHandled = true;
-		($this->do)(($this->innerGenerator)(static function(\Throwable $thr) use ($do, $sender) {
+		($this->do)(fn() => ($this->innerGenerator)(static function(\Throwable $thr) use ($do, $sender) {
 			\GlobalLogger::get()->logException($thr);
 			try {
 				$sender->sendMessage("§cAwait errored.");
