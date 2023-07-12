@@ -26,7 +26,7 @@ final class Await {
 	public static function nsleep(int $nanoseconds) : void {
 		$targetTime = hrtime(true) + $nanoseconds;
 		while (hrtime(true) < $targetTime) {
-			\Fiber::suspend(AwaitSignal::SIG_WAIT);
+			self::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
 
@@ -41,7 +41,7 @@ final class Await {
 
 	public static function interrupt() : void {
 		while (true) {
-			\Fiber::suspend(AwaitSignal::SIG_WAIT);
+			self::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
 
@@ -57,9 +57,9 @@ final class Await {
 		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
 		$rec->suspendWait();
 
-		\Fiber::suspend(AwaitSignal::SIG_EXCEPTION);
-		\Fiber::suspend($rec->getCallTrace());
-		\Fiber::suspend($rec->getError());
+		self::suspend(AwaitSignal::SIG_EXCEPTION);
+		self::suspend($rec->getCallTrace());
+		self::suspend($rec->getError());
 		return $rec->getResult();
 	}
 
@@ -77,9 +77,9 @@ final class Await {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $do);
 		}
 		$fiber = new \Fiber(static function() use ($do) : void {
-			\Fiber::suspend(AwaitSignal::SIG_WAIT);
+			self::suspend(AwaitSignal::SIG_WAIT);
 			$do();
-			\Fiber::suspend(AwaitSignal::SIG_FINISH);
+			self::suspend(AwaitSignal::SIG_FINISH);
 		});
 		$fiber->start();
 		$loop->add(static function($unsubscribe) use ($callTrace, $fiber) : void {
@@ -128,5 +128,12 @@ final class Await {
 			}
 		};
 		return new AwaitResult($func, static fn(Closure $dd) => self::fiberSync($dd, $loop));
+	}
+
+	public static function suspend(...$args) {
+		if (\Fiber::getCurrent() === null) {
+			throw new \RuntimeException('Cannot call async function outside of sync context');
+		}
+		return \Fiber::suspend(...$args);
 	}
 }

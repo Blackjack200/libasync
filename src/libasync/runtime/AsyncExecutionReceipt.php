@@ -3,6 +3,7 @@
 namespace libasync\runtime;
 
 use Generator;
+use libasync\await\Await;
 use libasync\await\AwaitSignal;
 use libasync\exception\AsyncExecutionException;
 use libasync\utils\Utils;
@@ -76,7 +77,7 @@ class AsyncExecutionReceipt extends ThreadSafe {
 
 	public function suspendWait() : void {
 		while (!$this->isFinished()) {
-			\Fiber::suspend(AwaitSignal::SIG_WAIT);
+			Await::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
 }
