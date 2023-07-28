@@ -26,7 +26,23 @@ class AwaitResult {
 	}
 
 	public function __destruct() {
-
+		if (!$this->errorHandled) {
+			if (PRODUCTION) {
+				\GlobalLogger::get()->debug(
+					"\n--- Await Start ---\n" .
+					implode("\n", $this->stackTrace) .
+					"\n--- End of exception information ---"
+				);
+			} else {
+				\GlobalLogger::get()->error(
+					"\n--- Await Start ---\n" .
+					implode("\n", $this->stackTrace) .
+					"\n--- End of exception information ---"
+				);
+				throw new \RuntimeException("Ignored await call");
+			}
+			$this->panic();
+		}
 	}
 
 	public function error(\Closure $do) : void {

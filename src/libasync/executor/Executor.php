@@ -21,6 +21,8 @@ final class Executor extends Thread implements AsyncRuntime {
 	protected readonly ThreadSafeLogger $logger;
 	protected readonly Closure $defer;
 	protected readonly Closure $prepareArgs;
+	protected bool $readyToUse = false;
+	protected bool $initialized = false;
 
 	public function __construct(
 		ThreadSafeLogger $logger,
@@ -36,6 +38,10 @@ final class Executor extends Thread implements AsyncRuntime {
 		$this->queue = $queue;
 	}
 
+	public function isReadyToUse() : bool { return $this->synchronized(fn() => $this->readyToUse); }
+
+	public function isInitialized() : bool { return $this->synchronized(fn() => $this->initialized); }
+
 	private function setError(AsyncExecutionReceipt $rec, Throwable $err) : void {
 		$rec->setError(AsyncExecutionException::wrap($err));
 	}
@@ -46,13 +52,19 @@ final class Executor extends Thread implements AsyncRuntime {
 		}
 		GlobalLogger::set($this->logger);
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' started');
-		$args = ($this->prepareArgs)($this) ?? [];
-		while (!$this->isKilled) {
-			$this->runTasks(...$args);
-			$this->synchronized(fn() => $this->wait(1000));
+		try {
+			$args = ($this->prepareArgs)($this) ?? [];
+			$this->synchronized(fn() => $this->initialized = true);
+			$this->synchronized(fn() => $this->readyToUse = true);
+			while (!$this->isKilled) {
+				$this->runTasks(...$args);
+				$this->synchronized(fn() => $this->wait(1000));
+			}
+			($this->defer)(...$args);
+			GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
+		} finally {
+			$this->synchronized(fn() => $this->initialized = true);
 		}
-		($this->defer)(...$args);
-		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
 	}
 
 	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
