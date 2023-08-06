@@ -4,16 +4,17 @@ namespace libasync\executor;
 
 use Closure;
 use GlobalLogger;
-use libasync\exception\AsyncExecutionException;
+use libasync\exception\ExecutionExceptionWrapper;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
-use libasync\utils\Utils;
+use libasync\utils\ClosureUtils;
 use pmmp\thread\ThreadSafeArray;
 use pocketmine\thread\log\ThreadSafeLogger;
 use pocketmine\thread\Thread;
 use pocketmine\utils\Utils as PMMPUtils;
 use ReflectionClass;
 use Throwable;
+use const bootstrap\PRODUCTION;
 
 final class Executor extends Thread implements AsyncRuntime {
 	public readonly string $autoload;
@@ -42,8 +43,10 @@ final class Executor extends Thread implements AsyncRuntime {
 
 	public function isInitialized() : bool { return $this->synchronized(fn() => $this->initialized); }
 
+	public function getPendingTaskCount() : int { return $this->synchronized(fn() => count($this->queue)); }
+
 	private function setError(AsyncExecutionReceipt $rec, Throwable $err) : void {
-		$rec->setError(AsyncExecutionException::wrap($err));
+		$rec->setError(ExecutionExceptionWrapper::wrap($err));
 	}
 
 	protected function onRun() : void {
@@ -60,6 +63,7 @@ final class Executor extends Thread implements AsyncRuntime {
 				$this->runTasks(...$args);
 				$this->synchronized(fn() => $this->wait(1000));
 			}
+			$this->runTasks(...$args);
 			($this->defer)(...$args);
 			GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
 		} finally {
@@ -68,22 +72,30 @@ final class Executor extends Thread implements AsyncRuntime {
 	}
 
 	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
+		if (!PRODUCTION) {
+			ClosureUtils::validateThreadSafety($closure);
+		}
 		$rec = new AsyncExecutionReceipt();
 		$rec->setCallTrace($callTrace ?? PMMPUtils::printableCurrentTrace());
-		$this->synchronized(fn() => $this->queue[] = ThreadSafeArray::fromArray([$rec, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]));
-		$this->synchronized(fn() => $this->notify());
+		$data = ThreadSafeArray::fromArray([$rec, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]);
+		$this->synchronized(function() use ($data) : void {
+			$this->queue[] = $data;
+			$this->notify();
+		});
 		return $rec;
 	}
 
 	private function runTask(AsyncExecutionReceipt $rec, ?Closure $closure, array $argsInjected, ?Closure $extraArgPrepareFunc, ?Closure $extraArgDestroyFunc) : void {
 		try {
 			$args = $extraArgPrepareFunc !== null ? ($extraArgPrepareFunc)($rec) : [];
+
 			try {
 				$result = $closure(...$args, ...$argsInjected);
 				$rec->setResult($result);
 			} catch (Throwable $err) {
 				$this->setError($rec, $err);
 			}
+
 			if ($extraArgDestroyFunc !== null) {
 				($extraArgDestroyFunc)(...$args);
 			}

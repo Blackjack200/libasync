@@ -5,8 +5,8 @@ namespace libasync\await;
 use Closure;
 use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
-use libasync\exception\AsyncExceptionWrapped;
-use libasync\exception\AsyncExecutionException;
+use libasync\exception\ExecutionException;
+use libasync\exception\ExecutionExceptionWrapper;
 use libasync\global\GlobalRuntime;
 use libasync\runtime\AsyncRuntime;
 use pocketmine\utils\Utils as PMMPUtils;
@@ -49,9 +49,9 @@ final class Await {
 	 * @template T
 	 * @param Closure(...$args):T $do
 	 * @return T
-	 * @throws \libasync\exception\AsyncExceptionWrapped
+	 * @throws \libasync\exception\ExecutionException
 	 */
-	public static function fiberAsync(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) {
+	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) {
 		$runtime ??= GlobalRuntime::getRuntime();
 
 		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
@@ -63,14 +63,10 @@ final class Await {
 		return $rec->getResult();
 	}
 
-	public static function fiberAsync2(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) {
-		return self::fiberAsync($do, $runtime, $extraArgPrepareFunc, $extraArgDestroyFunc);
-	}
-
 	/**
 	 * @internal
 	 */
-	private static function fiberSync(Closure $do, ?EventLoop $loop = null) : void {
+	private static function sync(Closure $do, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
 		$loop ??= GlobalRuntime::getLoop();
 		if (!PRODUCTION) {
@@ -99,7 +95,7 @@ final class Await {
 							$callTrace = $fiber->resume();
 							$exp = $fiber->resume();
 							if ($exp !== null) {
-								$fiber->throw(new AsyncExceptionWrapped($exp, $callTrace));
+								$fiber->throw(new ExecutionException($exp, $callTrace));
 							}
 							break;
 						case AwaitSignal::SIG_FINISH:
@@ -107,11 +103,11 @@ final class Await {
 							$unsubscribe();
 							break 2;
 					}
-				} catch (AsyncExceptionWrapped $thr) {
+				} catch (ExecutionException $thr) {
 					$thr->printWithCallTrace(\GlobalLogger::get());
 					throw new \RuntimeException('async execution error');
 				} catch (\Throwable $thr) {
-					AsyncExecutionException::wrap($thr)->printWithCallTrace($callTrace);
+					ExecutionExceptionWrapper::wrap($thr)->printWithCallTrace($callTrace);
 					throw $thr;
 				}
 			}
@@ -127,7 +123,7 @@ final class Await {
 				$d($thr);
 			}
 		};
-		return new AwaitResult($func, static fn(Closure $dd) => self::fiberSync($dd, $loop));
+		return new AwaitResult($func, static fn(Closure $dd) => self::sync($dd, $loop));
 	}
 
 	public static function suspend(...$args) {

@@ -3,7 +3,7 @@
 namespace libasync\runtime;
 
 use Closure;
-use libasync\exception\AsyncExecutionException;
+use libasync\exception\ExecutionExceptionWrapper;
 use pmmp\thread\ThreadSafeArray;
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\utils\Utils;
@@ -32,13 +32,13 @@ class AsyncExecutionTask extends AsyncTask {
 				$result = ($this->closure)(...$args);
 				$this->rec->setResult($result);
 			} catch (Throwable $err) {
-				$this->rec->setError(AsyncExecutionException::wrap($err));
+				$this->rec->setError(ExecutionExceptionWrapper::wrap($err));
 			}
 			if ($this->extraArgDestroyFunc !== null) {
 				($this->extraArgDestroyFunc)(...$args);
 			}
 		} catch (Throwable $err) {
-			$this->rec->setError(AsyncExecutionException::wrap($err));
+			$this->rec->setError(ExecutionExceptionWrapper::wrap($err));
 		}
 	}
 

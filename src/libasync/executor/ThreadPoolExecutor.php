@@ -3,8 +3,6 @@
 namespace libasync\executor;
 
 use Closure;
-use libasync\promise\PromiseInterface;
-use libasync\promise\task\AsyncPromiseTask;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 
@@ -12,7 +10,6 @@ class ThreadPoolExecutor implements AsyncRuntime {
 	private int $threadCount;
 	/** @var Executor[] */
 	private array $threads = [];
-	private int $counter = 0;
 
 	public function __construct(
 		ThreadFactory $factory,
@@ -40,18 +37,15 @@ class ThreadPoolExecutor implements AsyncRuntime {
 		}
 	}
 
-	public function submit(PromiseInterface $x) : void {
-		if (++$this->counter >= $this->threadCount) {
-			$this->counter = 0;
-		}
-		AsyncPromiseTask::awaitRun($x, $this->threads[$this->counter]);
-	}
-
 	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
-		if (++$this->counter >= $this->threadCount) {
-			$this->counter = 0;
+		$selectedThread = $this->threads[$this->threadCount - 1];
+		$min = PHP_INT_MAX;
+		foreach ($this->threads as $thread) {
+			if ($thread->getPendingTaskCount() < $min) {
+				$selectedThread = $thread;
+				$min = $thread->getPendingTaskCount();
+			}
 		}
-		$e = $this->threads[$this->counter];
-		return $e->runAsync($closure, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
+		return $selectedThread->runAsync($closure, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
 	}
 }

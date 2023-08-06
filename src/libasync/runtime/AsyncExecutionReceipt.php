@@ -5,7 +5,7 @@ namespace libasync\runtime;
 use Generator;
 use libasync\await\Await;
 use libasync\await\AwaitSignal;
-use libasync\exception\AsyncExecutionException;
+use libasync\exception\ExecutionExceptionWrapper;
 use libasync\utils\Utils;
 use pmmp\thread\ThreadSafe;
 
@@ -26,14 +26,14 @@ class AsyncExecutionReceipt extends ThreadSafe {
 		return $this->synchronized(fn() => Utils::smartDeserialize($this->result));
 	}
 
-	public function setError(?AsyncExecutionException $error) : void {
-		$this->synchronized(function(?AsyncExecutionException $error) {
+	public function setError(?ExecutionExceptionWrapper $error) : void {
+		$this->synchronized(function(?ExecutionExceptionWrapper $error) {
 			$this->error = igbinary_serialize($error);
 			$this->setFinished();
 		}, $error);
 	}
 
-	public function getError() : ?AsyncExecutionException {
+	public function getError() : ?ExecutionExceptionWrapper {
 		return $this->synchronized(function() {
 			if ($this->error === null) {
 				return null;

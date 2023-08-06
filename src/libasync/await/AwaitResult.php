@@ -2,7 +2,7 @@
 
 namespace libasync\await;
 
-use libasync\exception\AsyncExceptionWrapped;
+use libasync\exception\ExecutionException;
 use pocketmine\command\CommandSender;
 use pocketmine\utils\Utils;
 use const bootstrap\PRODUCTION;
@@ -27,19 +27,12 @@ class AwaitResult {
 
 	public function __destruct() {
 		if (!$this->errorHandled) {
-			if (PRODUCTION) {
-				\GlobalLogger::get()->debug(
-					"\n--- Await Start ---\n" .
-					implode("\n", $this->stackTrace) .
-					"\n--- End of exception information ---"
-				);
-			} else {
+			if (!PRODUCTION) {
 				\GlobalLogger::get()->error(
 					"\n--- Await Start ---\n" .
 					implode("\n", $this->stackTrace) .
 					"\n--- End of exception information ---"
 				);
-				throw new \RuntimeException("Ignored await call");
 			}
 			$this->panic();
 		}
@@ -64,7 +57,7 @@ class AwaitResult {
 	public function logError(?\Closure $do = null) : void {
 		$this->errorHandled = true;
 		($this->do)(fn() => ($this->innerGenerator)(static function(\Throwable $thr) use ($do) : void {
-			if (!$thr instanceof AsyncExceptionWrapped) {
+			if (!$thr instanceof ExecutionException) {
 				\GlobalLogger::get()->logException($thr);
 			} else {
 				$thr->printWithCallTrace(\GlobalLogger::get());
@@ -81,7 +74,7 @@ class AwaitResult {
 			\GlobalLogger::get()->logException($thr);
 			try {
 				$sender->sendMessage("§cAwait errored.");
-			} catch (AsyncExceptionWrapped $thr) {
+			} catch (ExecutionException $thr) {
 				$thr->printWithCallTrace(\GlobalLogger::get());
 			} catch (\Throwable $thr) {
 				\GlobalLogger::get()->logException($thr);

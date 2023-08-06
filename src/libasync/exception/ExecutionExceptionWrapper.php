@@ -9,7 +9,7 @@ use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
 use Throwable;
 
-final class AsyncExecutionException {
+final class ExecutionExceptionWrapper {
 	private function __construct(
 		protected string $class,
 		protected string $message,
@@ -45,7 +45,7 @@ final class AsyncExecutionException {
 		return 'Nop';
 	}
 
-	public static function printPromiseExceptionMessage(AsyncExecutionException $e) : string {
+	public static function printPromiseExceptionMessage(ExecutionExceptionWrapper $e) : string {
 		$errstr = preg_replace('/\s+/', ' ', trim($e->getMessage()));
 
 		$errno = $e->getCode();
