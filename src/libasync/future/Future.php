@@ -2,10 +2,14 @@
 
 namespace libasync\future;
 
+use Closure;
 use libasync\exception\CancellationException;
 use libasync\exception\ExecutionException;
 use libasync\exception\TimeoutException;
+use libasync\global\GlobalRuntime;
+use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
+use libasync\runtime\AsyncRuntime;
 use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 use pocketmine\utils\Utils;
@@ -24,6 +28,13 @@ class Future extends ThreadSafe implements FutureInterface {
 		private readonly AsyncExecutionReceipt $receipt
 	) {
 		$this->callTrace = ThreadSafeArray::fromArray(Utils::printableCurrentTrace());
+	}
+
+	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) : Future {
+		$runtime ??= GlobalRuntime::getRuntime();
+
+		$rec = $runtime->runAsync($do, $env);
+		return new Future($rec);
 	}
 
 	/**

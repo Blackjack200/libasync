@@ -8,6 +8,7 @@ use DaveRandom\CallbackValidator\ReturnType;
 use libasync\exception\ExecutionException;
 use libasync\exception\ExecutionExceptionWrapper;
 use libasync\global\GlobalRuntime;
+use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncRuntime;
 use pocketmine\utils\Utils as PMMPUtils;
 use const bootstrap\PRODUCTION;
@@ -51,10 +52,10 @@ final class Await {
 	 * @return T
 	 * @throws \libasync\exception\ExecutionException
 	 */
-	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null) {
+	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
 		$runtime ??= GlobalRuntime::getRuntime();
 
-		$rec = $runtime->runAsync($do, $extraArgPrepareFunc, $extraArgDestroyFunc);
+		$rec = $runtime->runAsync($do, $env);
 		$rec->suspendWait();
 
 		self::suspend(AwaitSignal::SIG_EXCEPTION);
