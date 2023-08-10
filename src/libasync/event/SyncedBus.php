@@ -3,6 +3,7 @@
 namespace libasync\event;
 
 use Closure;
+use libasync\utils\ClosureUtils;
 
 /**
  * @template T
@@ -14,7 +15,7 @@ final class SyncedBus implements BusInterface {
 	 * @param \Closure(T $topic):void $handler
 	 */
 	public function subscribe(Closure $handler) : void {
-		foreach (ClosureParser::parse($handler) as $type) {
+		foreach (ClosureUtils::parseSubscriber($handler) as $type) {
 			$this->handler[$type][] = $handler;
 		}
 	}

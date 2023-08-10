@@ -3,6 +3,7 @@
 namespace libasync\executor;
 
 use Closure;
+use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 
@@ -37,7 +38,7 @@ class ThreadPoolExecutor implements AsyncRuntime {
 		}
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
+	public function runAsync(Closure $closure, ?AsyncExecutionEnvironment $env = null) : AsyncExecutionReceipt {
 		$selectedThread = $this->threads[$this->threadCount - 1];
 		$min = PHP_INT_MAX;
 		foreach ($this->threads as $thread) {
@@ -46,6 +47,6 @@ class ThreadPoolExecutor implements AsyncRuntime {
 				$min = $thread->getPendingTaskCount();
 			}
 		}
-		return $selectedThread->runAsync($closure, $extraArgPrepareFunc, $extraArgDestroyFunc, $callTrace);
+		return $selectedThread->runAsync($closure, $env);
 	}
 }

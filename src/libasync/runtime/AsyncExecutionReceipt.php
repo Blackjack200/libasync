@@ -8,9 +8,10 @@ use libasync\await\AwaitSignal;
 use libasync\exception\ExecutionExceptionWrapper;
 use libasync\utils\Utils;
 use pmmp\thread\ThreadSafe;
+use pmmp\thread\ThreadSafeArray;
 
 /**
- * @template T
+ * @template T of (scalar|null|ThreadSafe|ThreadSafeArray)
  * T must be thread-safe or igbinary serializable
  */
 class AsyncExecutionReceipt extends ThreadSafe {
@@ -22,7 +23,7 @@ class AsyncExecutionReceipt extends ThreadSafe {
 	/**
 	 * @return T
 	 */
-	public function getResult() : mixed {
+	public function getResult() {
 		return $this->synchronized(fn() => Utils::smartDeserialize($this->result));
 	}
 

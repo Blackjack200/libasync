@@ -3,6 +3,8 @@
 namespace libasync\event;
 
 use Closure;
+use libasync\utils\ClosureUtils;
+use libasync\utils\Utils;
 use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 
@@ -25,9 +27,9 @@ class ThreadedBus extends ThreadSafe implements BusInterface {
 			$this->handler->synchronized(function() use (&$pending) : void {
 				while ($this->buffer->count() > 0) {
 					$buf = $this->buffer->pop();
-					$val = igbinary_unserialize($buf);
+					$val = Utils::smartDeserialize($buf);
 					foreach ($this->handler[get_debug_type($val)] ?? [] as $handler) {
-						$pending[] = [$handler,$val];
+						$pending[] = [$handler, $val];
 					}
 				}
 			});
@@ -41,14 +43,15 @@ class ThreadedBus extends ThreadSafe implements BusInterface {
 	 * @param \Closure(T $topic):void $handler
 	 */
 	public function subscribe(Closure $handler) : void {
+		ClosureUtils::validateThreadSafety($handler);
 		$this->handler->synchronized(function() use ($handler) : void {
-			foreach (ClosureParser::parse($handler) as $type) {
+			foreach (ClosureUtils::parseSubscriber($handler) as $type) {
 				$this->handler[$type][] = $handler;
 			}
 		});
 	}
 
 	public function publish(mixed $value) : void {
-		$this->buffer->synchronized(fn() => $this->buffer[] = igbinary_serialize($value));
+		$this->buffer->synchronized(fn() => $this->buffer[] = Utils::smartSerialize($value));
 	}
 }

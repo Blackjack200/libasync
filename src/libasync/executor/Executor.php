@@ -5,6 +5,7 @@ namespace libasync\executor;
 use Closure;
 use GlobalLogger;
 use libasync\exception\ExecutionExceptionWrapper;
+use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 use libasync\utils\ClosureUtils;
@@ -14,29 +15,18 @@ use pocketmine\thread\Thread;
 use pocketmine\utils\Utils as PMMPUtils;
 use ReflectionClass;
 use Throwable;
-use const bootstrap\PRODUCTION;
 
 final class Executor extends Thread implements AsyncRuntime {
-	public readonly string $autoload;
-	protected readonly ThreadSafeArray $queue;
-	protected readonly ThreadSafeLogger $logger;
-	protected readonly Closure $defer;
-	protected readonly Closure $prepareArgs;
-	protected bool $readyToUse = false;
-	protected bool $initialized = false;
+	private readonly ThreadSafeArray $queue;
+	private bool $readyToUse = false;
+	private bool $initialized = false;
 
 	public function __construct(
-		ThreadSafeLogger $logger,
-		string           $autoload,
-		ThreadSafeArray  $queue,
-		Closure          $prepareArgs,
-		Closure          $defer,
+		private readonly ThreadSafeLogger           $logger,
+		private readonly string                     $autoload,
+		private readonly ?AsyncExecutionEnvironment $env,
 	) {
-		$this->prepareArgs = $prepareArgs;
-		$this->defer = $defer;
-		$this->logger = $logger;
-		$this->autoload = $autoload;
-		$this->queue = $queue;
+		$this->queue = new ThreadSafeArray();
 	}
 
 	public function isReadyToUse() : bool { return $this->synchronized(fn() => $this->readyToUse); }
@@ -56,28 +46,32 @@ final class Executor extends Thread implements AsyncRuntime {
 		GlobalLogger::set($this->logger);
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' started');
 		try {
-			$args = ($this->prepareArgs)($this) ?? [];
+			if ($this->env !== null) {
+				$args = $this->env->prepareArgs();
+			} else {
+				$args = [];
+			}
 			$this->synchronized(fn() => $this->initialized = true);
 			$this->synchronized(fn() => $this->readyToUse = true);
 			while (!$this->isKilled) {
-				$this->runTasks(...$args);
+				$this->runTasks($args);
 				$this->synchronized(fn() => $this->wait(1000));
 			}
-			$this->runTasks(...$args);
-			($this->defer)(...$args);
+			$this->runTasks($args);
+			if ($this->env !== null) {
+				$this->env->releaseArgs($args);
+			}
 			GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
 		} finally {
 			$this->synchronized(fn() => $this->initialized = true);
 		}
 	}
 
-	public function runAsync(Closure $closure, ?Closure $extraArgPrepareFunc = null, ?Closure $extraArgDestroyFunc = null, ?array $callTrace = null) : AsyncExecutionReceipt {
-		if (!PRODUCTION) {
-			ClosureUtils::validateThreadSafety($closure);
-		}
+	public function runAsync(Closure $closure, ?AsyncExecutionEnvironment $env = null) : AsyncExecutionReceipt {
+		ClosureUtils::validateThreadSafety($closure);
 		$rec = new AsyncExecutionReceipt();
-		$rec->setCallTrace($callTrace ?? PMMPUtils::printableCurrentTrace());
-		$data = ThreadSafeArray::fromArray([$rec, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc]);
+		$rec->setCallTrace(PMMPUtils::printableCurrentTrace());
+		$data = ThreadSafeArray::fromArray([$rec, $closure, $env]);
 		$this->synchronized(function() use ($data) : void {
 			$this->queue[] = $data;
 			$this->notify();
@@ -85,32 +79,32 @@ final class Executor extends Thread implements AsyncRuntime {
 		return $rec;
 	}
 
-	private function runTask(AsyncExecutionReceipt $rec, ?Closure $closure, array $argsInjected, ?Closure $extraArgPrepareFunc, ?Closure $extraArgDestroyFunc) : void {
+	private function runTask(AsyncExecutionReceipt $rec, Closure $closure, ?AsyncExecutionEnvironment $env, array $injected) : void {
 		try {
-			$args = $extraArgPrepareFunc !== null ? ($extraArgPrepareFunc)($rec) : [];
-
 			try {
-				$result = $closure(...$args, ...$argsInjected);
+				if ($env !== null) {
+					$result = $env->run($closure, $injected);
+				} else {
+					$result = $closure(...$injected);
+				}
 				$rec->setResult($result);
 			} catch (Throwable $err) {
 				$this->setError($rec, $err);
-			}
-
-			if ($extraArgDestroyFunc !== null) {
-				($extraArgDestroyFunc)(...$args);
 			}
 		} catch (Throwable $err) {
 			$this->setError($rec, $err);
 		}
 	}
 
-	private function runTasks(...$argsInjected) : void {
+	private function runTasks(array $injected) : void {
 		$runCount = 0;
 		while (!$this->isKilled && $this->synchronized(fn() => $this->queue->count()) > 0) {
 			$runCount++;
-			[$rec, $closure, $extraArgPrepareFunc, $extraArgDestroyFunc] = $this->synchronized(fn() => $this->queue->shift());
-			assert($rec instanceof AsyncExecutionReceipt && $closure instanceof Closure);
-			$this->runTask($rec, $closure, $argsInjected, $extraArgPrepareFunc, $extraArgDestroyFunc);
+			[$rec, $closure, $env] = $this->synchronized(fn() => $this->queue->shift());
+			assert($rec instanceof AsyncExecutionReceipt);
+			assert($closure instanceof Closure);
+			assert($env instanceof AsyncExecutionEnvironment || $env === null);
+			$this->runTask($rec, $closure, $env, $injected);
 		}
 		if ($runCount > 0 && random_int(0, 2) === 0) {
 			gc_enable();

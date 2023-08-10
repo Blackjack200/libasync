@@ -25,7 +25,7 @@ final class Await {
 
 	public static function nsleep(int $nanoseconds) : void {
 		$targetTime = hrtime(true) + $nanoseconds;
-		while (hrtime(true) < $targetTime) {
+		while (((float) hrtime(true)) < $targetTime) {
 			self::suspend(AwaitSignal::SIG_WAIT);
 		}
 	}
@@ -47,7 +47,7 @@ final class Await {
 
 	/**
 	 * @template T
-	 * @param Closure(...$args):T $do
+	 * @param Closure():T $do
 	 * @return T
 	 * @throws \libasync\exception\ExecutionException
 	 */
