@@ -19,6 +19,9 @@ class ResourceRef {
 	) {
 	}
 
+	/**
+	 * @return T
+	 */
 	public function get() : mixed { return $this->val; }
 
 	public function free() : void {

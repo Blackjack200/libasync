@@ -4,6 +4,7 @@ namespace libasync\exception;
 
 use InvalidArgumentException;
 use Logger;
+use pmmp\thread\ThreadSafeArray;
 use pocketmine\errorhandler\ErrorTypeToStringMap;
 use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
@@ -63,7 +64,7 @@ final class ExecutionExceptionWrapper {
 		return $e->getClass() . ": \"$errstr\" ($errno) in \"$errfile\" at line $errline";
 	}
 
-	public function printWithCallTrace(array $callTrace, ?Logger $logger = null) : void {
+	public function printWithCallTrace(ThreadSafeArray|array $callTrace, ?Logger $logger = null) : void {
 		$logger ??= \GlobalLogger::get();
 		$logger->critical(self::printPromiseExceptionMessage($this));
 		$logger->critical(

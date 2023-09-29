@@ -131,7 +131,7 @@ final class Await {
 	}
 
 	private static function registerFiberCallback(\Fiber $fiber, EventLoop $loop, array $callTrace) : void {
-		$loop->add(static function($unsubscribe) use ($callTrace, $fiber) : void {
+		$loop->add(static function($break) use ($callTrace, $fiber) : void {
 			for ($i = 0; $i < 2; $i++) {
 				try {
 					if (!$fiber->isSuspended()) {
@@ -153,7 +153,7 @@ final class Await {
 							break;
 						case AwaitSignal::SIG_FINISH:
 						case AwaitSignal::SIG_INTERRUPT:
-							$unsubscribe();
+							$break();
 							break 2;
 					}
 				} catch (ExecutionException $thr) {

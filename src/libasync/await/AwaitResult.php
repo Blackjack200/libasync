@@ -4,6 +4,7 @@ namespace libasync\await;
 
 use libasync\exception\ExecutionException;
 use pocketmine\command\CommandSender;
+use pocketmine\player\Player;
 use pocketmine\utils\Utils;
 use const bootstrap\PRODUCTION;
 
@@ -34,7 +35,7 @@ class AwaitResult {
 					"\n--- End of exception information ---"
 				);
 			}
-			$this->panic();
+			(new self($this->innerGenerator, $this->do))->panic();
 		}
 	}
 
@@ -73,7 +74,13 @@ class AwaitResult {
 		($this->do)(fn() => ($this->innerGenerator)(static function(\Throwable $thr) use ($do, $sender) {
 			\GlobalLogger::get()->logException($thr);
 			try {
-				$sender->sendMessage("§cAwait errored.");
+				if ($sender instanceof Player) {
+					if ($sender->isOnline()) {
+						$sender->sendMessage('async error encountered');
+					}
+				} else {
+					$sender->sendMessage('async error encountered');
+				}
 			} catch (ExecutionException $thr) {
 				$thr->printWithCallTrace(\GlobalLogger::get());
 			} catch (\Throwable $thr) {

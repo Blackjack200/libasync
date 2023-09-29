@@ -33,7 +33,7 @@ class EventLoop extends ThreadSafe {
 	}
 
 	/**
-	 * @param \Closure(\Closure $unsubscribe):void $c
+	 * @param \Closure(\Closure $break):void $c
 	 */
 	public function add(Closure $c) : void {
 		$this->synchronized(function() use ($c) : void {
