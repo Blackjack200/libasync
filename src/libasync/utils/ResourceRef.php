@@ -31,4 +31,10 @@ class ResourceRef {
 	public function recycle() : bool {
 		return ($this->recycleFunc)($this->val);
 	}
+
+	public function tryRecycleAndFree() : void {
+		if (!$this->recycle()) {
+			$this->free();
+		}
+	}
 }
