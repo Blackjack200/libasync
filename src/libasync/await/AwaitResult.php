@@ -2,10 +2,14 @@
 
 namespace libasync\await;
 
+use Closure;
+use GlobalLogger;
 use libasync\exception\ExecutionException;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
 use pocketmine\utils\Utils;
+use prokits\utils\StringUtils;
+use Throwable;
 use const bootstrap\PRODUCTION;
 
 class AwaitResult {
@@ -16,12 +20,12 @@ class AwaitResult {
 	 * @param \Closure(\Closure):void $do
 	 */
 	public function __construct(
-		private readonly \Closure $innerGenerator,
-		private readonly \Closure $do,
+		private readonly Closure $innerGenerator,
+		private readonly Closure $do,
 	) {
 		if (!PRODUCTION) {
-			Utils::validateCallableSignature(static function(\Closure $do) : void { }, $innerGenerator);
-			Utils::validateCallableSignature(static function(\Closure $g) { }, $do);
+			Utils::validateCallableSignature(static function(Closure $do) : void { }, $innerGenerator);
+			Utils::validateCallableSignature(static function(Closure $g) { }, $do);
 		}
 		$this->stackTrace = Utils::printableCurrentTrace();
 	}
@@ -29,7 +33,7 @@ class AwaitResult {
 	public function __destruct() {
 		if (!$this->errorHandled) {
 			if (!PRODUCTION) {
-				\GlobalLogger::get()->error(
+				GlobalLogger::get()->error(
 					"\n--- Await Start ---\n" .
 					implode("\n", $this->stackTrace) .
 					"\n--- End of exception information ---"
@@ -39,7 +43,7 @@ class AwaitResult {
 		}
 	}
 
-	public function error(\Closure $do) : void {
+	public function error(Closure $do) : void {
 		$this->errorHandled = true;
 		($this->do)(fn() => ($this->innerGenerator)($do));
 	}
@@ -49,19 +53,19 @@ class AwaitResult {
 	 */
 	public function panic() : void {
 		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)(static fn(\Throwable $thr) => throw $thr));
+		($this->do)(fn() => ($this->innerGenerator)(static fn(Throwable $thr) => throw $thr));
 	}
 
 	/**
 	 * @see self::panic()
 	 */
-	public function logError(?\Closure $do = null) : void {
+	public function logError(?Closure $do = null) : void {
 		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)(static function(\Throwable $thr) use ($do) : void {
+		($this->do)(fn() => ($this->innerGenerator)(static function(Throwable $thr) use ($do) : void {
 			if (!$thr instanceof ExecutionException) {
-				\GlobalLogger::get()->logException($thr);
+				GlobalLogger::get()->logException($thr);
 			} else {
-				$thr->printWithCallTrace(\GlobalLogger::get());
+				$thr->printWithCallTrace(GlobalLogger::get());
 			}
 			if ($do !== null) {
 				$do($thr);
@@ -69,22 +73,26 @@ class AwaitResult {
 		}));
 	}
 
-	public function logErrorWithSender(CommandSender $sender, ?\Closure $do = null) : void {
+	public function logErrorWithSender(CommandSender $sender, ?Closure $do = null) : void {
 		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)(static function(\Throwable $thr) use ($do, $sender) {
-			\GlobalLogger::get()->logException($thr);
+		($this->do)(fn() => ($this->innerGenerator)(static function(Throwable $thr) use ($do, $sender) {
+			if ($thr instanceof ExecutionException) {
+				$thr->printWithCallTrace(GlobalLogger::get());
+			} else {
+				GlobalLogger::get()->logException($thr);
+			}
 			try {
 				if ($sender instanceof Player) {
 					if ($sender->isOnline()) {
-						$sender->sendMessage('async error encountered');
+						if (class_exists(StringUtils::class)) {
+							$sender->sendMessage(StringUtils::response(false, 'async error encountered'));
+						} else {
+							$sender->sendMessage('async error encountered');
+						}
 					}
-				} else {
-					$sender->sendMessage('async error encountered');
 				}
-			} catch (ExecutionException $thr) {
-				$thr->printWithCallTrace(\GlobalLogger::get());
-			} catch (\Throwable $thr) {
-				\GlobalLogger::get()->logException($thr);
+			} catch (Throwable $thr) {
+				GlobalLogger::get()->logException($thr);
 			}
 			$do($thr);
 		}));
