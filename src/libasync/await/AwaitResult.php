@@ -3,6 +3,8 @@
 namespace libasync\await;
 
 use Closure;
+use DaveRandom\CallbackValidator\CallbackType;
+use DaveRandom\CallbackValidator\ReturnType;
 use GlobalLogger;
 use libasync\exception\ExecutionException;
 use pocketmine\command\CommandSender;
@@ -17,15 +19,13 @@ class AwaitResult {
 	private bool $errorHandled = false;
 
 	/**
-	 * @param \Closure(\Closure):void $do
+	 * @param \Closure():void $block
 	 */
 	public function __construct(
-		private readonly Closure $innerGenerator,
-		private readonly Closure $do,
+		private readonly Closure $block,
 	) {
 		if (!PRODUCTION) {
-			Utils::validateCallableSignature(static function(Closure $do) : void { }, $innerGenerator);
-			Utils::validateCallableSignature(static function(Closure $g) { }, $do);
+			Utils::validateCallableSignature((new CallbackType(new ReturnType())), $block);
 		}
 		$this->stackTrace = Utils::printableCurrentTrace();
 	}
@@ -39,29 +39,31 @@ class AwaitResult {
 					"\n--- End of exception information ---"
 				);
 			}
-			(new self($this->innerGenerator, $this->do))->panic();
+			(new self($this->block))->panic();
 		}
 	}
 
-	public function error(Closure $do) : void {
+	public function error(Closure $errorHandler) : void {
 		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)($do));
+		try {
+			($this->block)();
+		} catch (Throwable $thr) {
+			$errorHandler($thr);
+		}
 	}
 
 	/**
 	 * @throws \Throwable
 	 */
 	public function panic() : void {
-		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)(static fn(Throwable $thr) => throw $thr));
+		$this->error(static fn(Throwable $thr) => throw $thr);
 	}
 
 	/**
 	 * @see self::panic()
 	 */
 	public function logError(?Closure $do = null) : void {
-		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)(static function(Throwable $thr) use ($do) : void {
+		$this->error(static function(Throwable $thr) use ($do) : void {
 			if (!$thr instanceof ExecutionException) {
 				GlobalLogger::get()->logException($thr);
 			} else {
@@ -70,31 +72,30 @@ class AwaitResult {
 			if ($do !== null) {
 				$do($thr);
 			}
-		}));
+		});
 	}
 
 	public function logErrorWithSender(CommandSender $sender, ?Closure $do = null) : void {
-		$this->errorHandled = true;
-		($this->do)(fn() => ($this->innerGenerator)(static function(Throwable $thr) use ($do, $sender) {
+		$this->error(static function(Throwable $thr) use ($do, $sender) {
 			if ($thr instanceof ExecutionException) {
 				$thr->printWithCallTrace(GlobalLogger::get());
 			} else {
 				GlobalLogger::get()->logException($thr);
 			}
 			try {
-				if ($sender instanceof Player) {
-					if ($sender->isOnline()) {
-						if (class_exists(StringUtils::class)) {
-							$sender->sendMessage(StringUtils::response(false, 'async error encountered'));
-						} else {
-							$sender->sendMessage('async error encountered');
-						}
+				if ($sender instanceof Player && $sender->isOnline()) {
+					if (class_exists(StringUtils::class)) {
+						$sender->sendMessage(StringUtils::response(false, 'async error encountered'));
+					} else {
+						$sender->sendMessage('async error encountered');
 					}
 				}
 			} catch (Throwable $thr) {
 				GlobalLogger::get()->logException($thr);
 			}
-			$do($thr);
-		}));
+			if ($do !== null) {
+				$do($thr);
+			}
+		});
 	}
 }

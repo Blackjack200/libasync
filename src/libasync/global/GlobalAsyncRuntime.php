@@ -5,12 +5,12 @@ namespace libasync\global;
 use libasync\await\EventLoop;
 use libasync\runtime\AsyncRuntime;
 
-final class GlobalRuntime {
+final class GlobalAsyncRuntime {
 	private function __construct() { }
 	private static ?AsyncRuntime $runtime = null;
 	private static ?EventLoop $loop = null;
 
-	public static function getRuntime() : AsyncRuntime {
+	public static function gerThreadedRuntime() : AsyncRuntime {
 		if (self::$runtime === null) {
 			throw new \RuntimeException('no default async runtime');
 		}

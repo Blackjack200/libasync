@@ -12,7 +12,7 @@ use pmmp\thread\ThreadSafeArray;
 
 /**
  * @template T of (scalar|null|ThreadSafe|ThreadSafeArray)
- * T must be thread-safe or igbinary serializable
+ * T must be thread-safe or ig-binary serializable
  */
 class AsyncExecutionReceipt extends ThreadSafe {
 	private ThreadSafe|string $result;

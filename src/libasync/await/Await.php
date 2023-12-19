@@ -5,14 +5,18 @@ namespace libasync\await;
 use Closure;
 use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
+use Fiber;
+use GlobalLogger;
 use libasync\exception\ExecutionException;
 use libasync\exception\ExecutionExceptionWrapper;
 use libasync\future\Future;
-use libasync\global\GlobalRuntime;
+use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 use pocketmine\utils\Utils as PMMPUtils;
+use RuntimeException;
+use Throwable;
 use const bootstrap\PRODUCTION;
 
 final class Await {
@@ -52,10 +56,10 @@ final class Await {
 	 * @template T
 	 * @param Closure():T $do
 	 * @return T
-	 * @throws \libasync\exception\ExecutionException
+	 * @throws ExecutionException
 	 */
-	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
-		$runtime ??= GlobalRuntime::getRuntime();
+	public static function threadify(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
+		$runtime ??= GlobalAsyncRuntime::gerThreadedRuntime();
 
 		$rec = $runtime->runAsync($do, $env);
 
@@ -73,31 +77,24 @@ final class Await {
 	/**
 	 * @internal
 	 */
-	private static function sync(Closure $do, ?EventLoop $loop = null) : void {
+	private static function wrapCoroutine(Closure $coroutineFunc, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
-		$loop ??= GlobalRuntime::getLoop();
+		$loop ??= GlobalAsyncRuntime::getLoop();
 		if (!PRODUCTION) {
-			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $do);
+			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineFunc);
 		}
-		$fiber = new \Fiber(static function() use ($do) : void {
+		$coroutine = new Fiber(static function() use ($coroutineFunc) : void {
 			self::suspend(AwaitSignal::SIG_WAIT);
-			$do();
+			$coroutineFunc();
 			self::suspend(AwaitSignal::SIG_FINISH);
 		});
-		$fiber->start();
-		self::registerFiberCallback($fiber, $loop, $callTrace);
+		$coroutine->start();
+		self::registerCoroutineScheduler($coroutine, $loop, $callTrace);
 	}
 
 
-	public static function do(Closure $do, ?EventLoop $loop = null) : AwaitResult {
-		$func = static function(Closure $d) use ($do) : void {
-			try {
-				$do();
-			} catch (\Throwable $thr) {
-				$d($thr);
-			}
-		};
-		return new AwaitResult($func, static fn(Closure $dd) => self::sync($dd, $loop));
+	public static function do(Closure $block, ?EventLoop $loop = null) : AwaitResult {
+		return new AwaitResult(static fn() => self::wrapCoroutine($block, $loop));
 	}
 
 	public static function future(Closure $do) : Future {
@@ -106,7 +103,7 @@ final class Await {
 		if (!PRODUCTION) {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $do);
 		}
-		$fiber = new \Fiber(static function() use ($do) : void {
+		$fiber = new Fiber(static function() use ($do) : void {
 			self::suspend(AwaitSignal::SIG_WAIT);
 			$do();
 			self::suspend(AwaitSignal::SIG_FINISH);
@@ -115,7 +112,7 @@ final class Await {
 		$fiber->resume();
 		$receipt = $fiber->resume();
 		assert($receipt instanceof AsyncExecutionReceipt);
-		self::registerFiberCallback($fiber, $loop, $callTrace);
+		self::registerCoroutineScheduler($fiber, $loop, $callTrace);
 		while ($loop->busy()) {
 			$loop->poll(50);
 			usleep(50);
@@ -124,13 +121,13 @@ final class Await {
 	}
 
 	public static function suspend(...$args) {
-		if (\Fiber::getCurrent() === null) {
-			throw new \RuntimeException('Cannot call async function outside of sync context');
+		if (Fiber::getCurrent() === null) {
+			throw new RuntimeException('Cannot call async function outside of sync context');
 		}
-		return \Fiber::suspend(...$args);
+		return Fiber::suspend(...$args);
 	}
 
-	private static function registerFiberCallback(\Fiber $fiber, EventLoop $loop, array $callTrace) : void {
+	private static function registerCoroutineScheduler(Fiber $fiber, EventLoop $loop, array $callTrace) : void {
 		$loop->add(static function($break) use ($callTrace, $fiber) : void {
 			for ($i = 0; $i < 2; $i++) {
 				try {
@@ -157,9 +154,9 @@ final class Await {
 							break 2;
 					}
 				} catch (ExecutionException $thr) {
-					$thr->printWithCallTrace(\GlobalLogger::get());
-					throw new \RuntimeException('async execution error');
-				} catch (\Throwable $thr) {
+					$thr->printWithCallTrace(GlobalLogger::get());
+					throw new RuntimeException('async execution error');
+				} catch (Throwable $thr) {
 					ExecutionExceptionWrapper::wrap($thr)->printWithCallTrace($callTrace);
 					throw $thr;
 				}

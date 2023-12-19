@@ -6,7 +6,7 @@ use Closure;
 use libasync\exception\CancellationException;
 use libasync\exception\ExecutionException;
 use libasync\exception\TimeoutException;
-use libasync\global\GlobalRuntime;
+use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
@@ -31,7 +31,7 @@ class Future extends ThreadSafe implements FutureInterface {
 	}
 
 	public static function async(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) : Future {
-		$runtime ??= GlobalRuntime::getRuntime();
+		$runtime ??= GlobalAsyncRuntime::gerThreadedRuntime();
 
 		$rec = $runtime->runAsync($do, $env);
 		return new Future($rec);

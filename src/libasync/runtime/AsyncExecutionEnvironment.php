@@ -11,27 +11,27 @@ use const bootstrap\PRODUCTION;
 
 class AsyncExecutionEnvironment extends ThreadSafe {
 	public function __construct(
-		private readonly Closure $prepareArgs,
-		private readonly Closure $defer,
+		private readonly Closure $argsCtor,
+		private readonly Closure $argsDtor,
 	) {
 		if (!PRODUCTION) {
-			Utils::validateCallableSignature(static fn() : array => [], $this->prepareArgs);
-			ClosureUtils::validateStatic($this->defer);
+			Utils::validateCallableSignature(static fn() : array => [], $this->argsCtor);
+			ClosureUtils::validateStatic($this->argsDtor);
 		}
 	}
 
-	public function prepareArgs() : array { return ($this->prepareArgs)(); }
+	public function createArgs() : array { return ($this->argsCtor)(); }
 
-	public function releaseArgs(array $args) : void { ($this->defer)(...$args); }
+	public function destroyArgs(array $args) : void { ($this->argsDtor)(...$args); }
 
 	public function run(Closure $f, array $injected = []) {
-		$args = $this->prepareArgs();
+		$args = $this->createArgs();
 		try {
 			$result = $f(...$args, ...$injected);
-			$this->releaseArgs($args);
+			$this->destroyArgs($args);
 			return $result;
 		} catch (Throwable $thr) {
-			$this->releaseArgs($args);
+			$this->destroyArgs($args);
 			throw $thr;
 		}
 	}

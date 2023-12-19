@@ -7,9 +7,9 @@ use libasync\utils\ClosureUtils;
 use pocketmine\scheduler\AsyncPool;
 use pocketmine\utils\Utils;
 
-class AsyncTaskRuntime implements AsyncRuntime {
+readonly class AsyncPoolRuntime implements AsyncRuntime {
 	public function __construct(
-		private readonly AsyncPool $pool
+		private AsyncPool $pool
 	) {
 	}
 

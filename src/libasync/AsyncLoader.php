@@ -3,8 +3,8 @@
 namespace libasync;
 
 use libasync\await\EventLoop;
-use libasync\global\GlobalRuntime;
-use libasync\runtime\AsyncTaskRuntime;
+use libasync\global\GlobalAsyncRuntime;
+use libasync\runtime\AsyncPoolRuntime;
 use pocketmine\plugin\PluginBase;
 use pocketmine\scheduler\ClosureTask;
 
@@ -21,8 +21,8 @@ class AsyncLoader extends PluginBase {
 		}
 
 		$lp = new EventLoop();
-		GlobalRuntime::setRuntime(new AsyncTaskRuntime($this->getServer()->getAsyncPool()));
-		GlobalRuntime::setLoop($lp);
+		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
+		GlobalAsyncRuntime::setLoop($lp);
 		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 2);
 	}
 }

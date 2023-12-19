@@ -47,7 +47,7 @@ final class Executor extends Thread implements AsyncRuntime {
 		GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' started');
 		try {
 			if ($this->env !== null) {
-				$args = $this->env->prepareArgs();
+				$args = $this->env->createArgs();
 			} else {
 				$args = [];
 			}
@@ -59,7 +59,7 @@ final class Executor extends Thread implements AsyncRuntime {
 			}
 			$this->runTasks($args);
 			if ($this->env !== null) {
-				$this->env->releaseArgs($args);
+				$this->env->destroyArgs($args);
 			}
 			GlobalLogger::get()->debug(((new ReflectionClass($this))->getShortName()) . ' shutdown gracefully');
 		} finally {

@@ -10,26 +10,22 @@ use Throwable;
 class AsyncExecutionTask extends AsyncTask {
 
 	public function __construct(
-		private readonly AsyncExecutionReceipt      $rec,
-		private readonly Closure                    $closure,
+		private readonly AsyncExecutionReceipt      $receipt,
+		private readonly Closure                    $func,
 		private readonly ?AsyncExecutionEnvironment $env,
 	) {
 	}
 
 	public function onRun() : void {
 		try {
-			try {
-				if ($this->env !== null) {
-					$result = $this->env->run($this->closure);
-				} else {
-					$result = ($this->closure)();
-				}
-				$this->rec->setResult($result);
-			} catch (Throwable $err) {
-				$this->rec->setError(ExecutionExceptionWrapper::wrap($err));
+			if ($this->env !== null) {
+				$result = $this->env->run($this->func);
+			} else {
+				$result = ($this->func)();
 			}
+			$this->receipt->setResult($result);
 		} catch (Throwable $err) {
-			$this->rec->setError(ExecutionExceptionWrapper::wrap($err));
+			$this->receipt->setError(ExecutionExceptionWrapper::wrap($err));
 		}
 	}
 }
