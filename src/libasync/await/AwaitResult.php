@@ -7,6 +7,9 @@ use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
 use GlobalLogger;
 use libasync\exception\ExecutionException;
+use libasync\global\GlobalAsyncRuntime;
+use pmmp\thread\ThreadSafe;
+use pmmp\thread\ThreadSafeArray;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
 use pocketmine\utils\Utils;
@@ -14,8 +17,8 @@ use prokits\utils\StringUtils;
 use Throwable;
 use const bootstrap\PRODUCTION;
 
-class AwaitResult {
-	private array $stackTrace;
+class AwaitResult extends ThreadSafe {
+	private ThreadSafeArray $stackTrace;
 	private bool $errorHandled = false;
 
 	/**
@@ -27,7 +30,7 @@ class AwaitResult {
 		if (!PRODUCTION) {
 			Utils::validateCallableSignature((new CallbackType(new ReturnType())), $block);
 		}
-		$this->stackTrace = Utils::printableCurrentTrace();
+		$this->stackTrace = ThreadSafeArray::fromArray(Utils::printableCurrentTrace());
 	}
 
 	public function __destruct() {
@@ -35,11 +38,14 @@ class AwaitResult {
 			if (!PRODUCTION) {
 				GlobalLogger::get()->error(
 					"\n--- Await Start ---\n" .
-					implode("\n", $this->stackTrace) .
+					implode("\n", (array)$this->stackTrace) .
 					"\n--- End of exception information ---"
 				);
 			}
-			(new self($this->block))->panic();
+			GlobalAsyncRuntime::getLoop()->add(function($break) : void {
+				(new self($this->block))->panic();
+				$break();
+			});
 		}
 	}
 

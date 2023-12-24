@@ -14,6 +14,9 @@ use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
+use pocketmine\Server;
+use pocketmine\thread\ThreadCrashInfoFrame;
+use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
 use RuntimeException;
 use Throwable;
@@ -155,7 +158,23 @@ final class Await {
 					}
 				} catch (ExecutionException $thr) {
 					$thr->printWithCallTrace(GlobalLogger::get());
-					throw new RuntimeException('async execution error');
+					global $lastExceptionError, $lastError;
+					$wrapper = $thr->getWrapper();
+					$x = [];
+					foreach ($wrapper->getTrace() as $xb => $ttr) {
+						$x[$xb] = new ThreadCrashInfoFrame($ttr, "unknown", 0);
+					}
+					$lastError = $lastError = [
+						"type" => $wrapper->getClass(),
+						"message" => $wrapper->getMessage(),
+						"fullFile" => $wrapper->getFile(),
+						"file" => Filesystem::cleanPath($wrapper->getFile()),
+						"line" => $wrapper->getLine(),
+						"trace" => $x,
+						"thread" => "Coroutine",
+					];
+					$lastExceptionError = $lastError;
+					Server::getInstance()->crashDump();
 				} catch (Throwable $thr) {
 					ExecutionExceptionWrapper::wrap($thr)->printWithCallTrace($callTrace);
 					throw $thr;
