@@ -15,6 +15,8 @@ class ExecutionException extends \Exception {
 
 	public function getWrapper() : ExecutionExceptionWrapper { return $this->exception; }
 
+	public function getCallTrace() : array|ThreadSafeArray { return $this->callTrace; }
+
 	public function printWithCallTrace(?Logger $logger = null) : void {
 		$this->exception->printWithCallTrace($this->callTrace, $logger);
 	}

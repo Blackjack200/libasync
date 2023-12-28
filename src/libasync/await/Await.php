@@ -86,9 +86,13 @@ final class Await {
 		if (!PRODUCTION) {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineFunc);
 		}
-		$coroutine = new Fiber(static function() use ($coroutineFunc) : void {
+		$coroutine = new Fiber(static function() use ($callTrace, $coroutineFunc) : void {
 			self::suspend(AwaitSignal::SIG_WAIT);
-			$coroutineFunc();
+			try {
+				$coroutineFunc();
+			} catch (Throwable $thr) {
+				self::crash($thr, $callTrace);
+			}
 			self::suspend(AwaitSignal::SIG_FINISH);
 		});
 		$coroutine->start();
@@ -156,30 +160,36 @@ final class Await {
 							$break();
 							break 2;
 					}
-				} catch (ExecutionException $thr) {
-					$thr->printWithCallTrace(GlobalLogger::get());
-					global $lastExceptionError, $lastError;
-					$wrapper = $thr->getWrapper();
-					$x = [];
-					foreach ($wrapper->getTrace() as $xb => $ttr) {
-						$x[$xb] = new ThreadCrashInfoFrame($ttr, "unknown", 0);
-					}
-					$lastError = $lastError = [
-						"type" => $wrapper->getClass(),
-						"message" => $wrapper->getMessage(),
-						"fullFile" => $wrapper->getFile(),
-						"file" => Filesystem::cleanPath($wrapper->getFile()),
-						"line" => $wrapper->getLine(),
-						"trace" => $x,
-						"thread" => "Coroutine",
-					];
-					$lastExceptionError = $lastError;
-					Server::getInstance()->crashDump();
 				} catch (Throwable $thr) {
-					ExecutionExceptionWrapper::wrap($thr)->printWithCallTrace($callTrace);
-					throw $thr;
+					self::crash($thr, $callTrace);
 				}
 			}
 		});
+	}
+
+	private static function crash(Throwable $thr, array $callTrace) : void {
+		$x = [];
+		foreach ($callTrace as $xb => $ttr) {
+			$x[$xb] = new ThreadCrashInfoFrame($ttr, "unknown", 0);
+		}
+		if ($thr instanceof ExecutionException) {
+			$thr->printWithCallTrace(GlobalLogger::get());
+			$wrapper = $thr->getWrapper();
+		} else {
+			GlobalLogger::get()->logException($thr);
+			$wrapper = ExecutionExceptionWrapper::wrap($thr);
+		}
+
+		global $lastExceptionError;
+		$lastExceptionError = [
+			"type" => $wrapper->getClass(),
+			"message" => $wrapper->getMessage(),
+			"fullFile" => $wrapper->getFile(),
+			"file" => Filesystem::cleanPath($wrapper->getFile()),
+			"line" => $wrapper->getLine(),
+			"trace" => $x,
+			"thread" => "Coroutine",
+		];
+		Server::getInstance()->crashDump();
 	}
 }

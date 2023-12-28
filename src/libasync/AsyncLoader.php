@@ -2,6 +2,7 @@
 
 namespace libasync;
 
+use libasync\await\Await;
 use libasync\await\EventLoop;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
@@ -24,5 +25,9 @@ class AsyncLoader extends PluginBase {
 		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
 		GlobalAsyncRuntime::setLoop($lp);
 		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 2);
+		Await::do(static function() {
+			Await::nsleep(1);
+			Await::threadify(static fn() => throw new \RuntimeException());
+		})->panic();
 	}
 }
