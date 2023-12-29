@@ -27,9 +27,6 @@ class AwaitResult extends ThreadSafe {
 	public function __construct(
 		private readonly Closure $block,
 	) {
-		if (!PRODUCTION) {
-			Utils::validateCallableSignature((new CallbackType(new ReturnType())), $block);
-		}
 		$this->stackTrace = ThreadSafeArray::fromArray(Utils::printableCurrentTrace());
 	}
 
@@ -38,7 +35,7 @@ class AwaitResult extends ThreadSafe {
 			if (!PRODUCTION) {
 				GlobalLogger::get()->error(
 					"\n--- Await Start ---\n" .
-					implode("\n", (array)$this->stackTrace) .
+					implode("\n", (array) $this->stackTrace) .
 					"\n--- End of exception information ---"
 				);
 			}
@@ -52,9 +49,13 @@ class AwaitResult extends ThreadSafe {
 	public function error(Closure $errorHandler) : void {
 		$this->errorHandled = true;
 		try {
-			($this->block)();
+			($this->block)($errorHandler);
 		} catch (Throwable $thr) {
-			$errorHandler($thr);
+			try {
+				$errorHandler($thr);
+			} catch (Throwable $err) {
+				GlobalLogger::get()->logException($err);
+			}
 		}
 	}
 

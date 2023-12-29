@@ -80,7 +80,7 @@ final class Await {
 	/**
 	 * @internal
 	 */
-	private static function wrapCoroutine(Closure $coroutineFunc, ?EventLoop $loop = null) : void {
+	private static function wrapCoroutine(Closure $coroutineFunc, Closure $errorHandler, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
 		$loop ??= GlobalAsyncRuntime::getLoop();
 		if (!PRODUCTION) {
@@ -96,12 +96,12 @@ final class Await {
 			self::suspend(AwaitSignal::SIG_FINISH);
 		});
 		$coroutine->start();
-		self::registerCoroutineScheduler($coroutine, $loop, $callTrace);
+		self::registerCoroutineScheduler($coroutine, $loop, $callTrace, $errorHandler);
 	}
 
 
 	public static function do(Closure $block, ?EventLoop $loop = null) : AwaitResult {
-		return new AwaitResult(static fn() => self::wrapCoroutine($block, $loop));
+		return new AwaitResult(static fn(Closure $errorHandler) => self::wrapCoroutine($block, $errorHandler, $loop));
 	}
 
 	public static function future(Closure $do) : Future {
@@ -134,8 +134,8 @@ final class Await {
 		return Fiber::suspend(...$args);
 	}
 
-	private static function registerCoroutineScheduler(Fiber $fiber, EventLoop $loop, array $callTrace) : void {
-		$loop->add(static function($break) use ($callTrace, $fiber) : void {
+	private static function registerCoroutineScheduler(Fiber $fiber, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
+		$loop->add(static function($break) use ($errorHandler, $callTrace, $fiber) : void {
 			for ($i = 0; $i < 2; $i++) {
 				try {
 					if (!$fiber->isSuspended()) {
@@ -161,7 +161,15 @@ final class Await {
 							break 2;
 					}
 				} catch (Throwable $thr) {
-					self::crash($thr, $callTrace);
+					if ($errorHandler !== null) {
+						try {
+							$errorHandler($thr);
+						} catch (Throwable $err) {
+							GlobalLogger::get()->logException($err);
+						}
+					} else {
+						self::crash($thr, $callTrace);
+					}
 				}
 			}
 		});
