@@ -86,12 +86,16 @@ final class Await {
 		if (!PRODUCTION) {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineFunc);
 		}
-		$coroutine = new Fiber(static function() use ($callTrace, $coroutineFunc) : void {
+		$coroutine = new Fiber(static function() use ($errorHandler, $callTrace, $coroutineFunc) : void {
 			self::suspend(AwaitSignal::SIG_WAIT);
 			try {
 				$coroutineFunc();
 			} catch (Throwable $thr) {
-				self::crash($thr, $callTrace);
+				try {
+					$errorHandler($thr);
+				} catch (Throwable $thr) {
+					self::crash($thr, $callTrace);
+				}
 			}
 			self::suspend(AwaitSignal::SIG_FINISH);
 		});
