@@ -152,7 +152,8 @@ final class Await {
 								if ($exp !== null) {
 									$coroutine->throw(new ExecutionException($exp, $callTrace));
 								}
-								break;
+								$break();
+								break 2;
 							case AwaitSignal::SIG_FINISH:
 							case AwaitSignal::SIG_INTERRUPT:
 								$break();
