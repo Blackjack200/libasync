@@ -50,9 +50,7 @@ final class Await {
 	}
 
 	public static function interrupt() : void {
-		while (true) {
-			self::suspend(AwaitSignal::SIG_WAIT);
-		}
+		self::suspend(AwaitSignal::SIG_INTERRUPT);
 	}
 
 	/**
@@ -151,8 +149,6 @@ final class Await {
 							if ($exp !== null) {
 								$coroutine->throw(new ExecutionException($exp, $callTrace));
 							}
-							$coroutine->resume();
-							$break();
 							break;
 						case AwaitSignal::SIG_FINISH:
 						case AwaitSignal::SIG_INTERRUPT:
