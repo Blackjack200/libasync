@@ -3,8 +3,6 @@
 namespace libasync\await;
 
 use Closure;
-use DaveRandom\CallbackValidator\CallbackType;
-use DaveRandom\CallbackValidator\ReturnType;
 use GlobalLogger;
 use libasync\exception\ExecutionException;
 use libasync\global\GlobalAsyncRuntime;
@@ -48,15 +46,7 @@ class AwaitResult extends ThreadSafe {
 
 	public function error(Closure $errorHandler) : void {
 		$this->errorHandled = true;
-		try {
-			($this->block)($errorHandler);
-		} catch (Throwable $thr) {
-			try {
-				$errorHandler($thr);
-			} catch (Throwable $err) {
-				GlobalLogger::get()->logException($err);
-			}
-		}
+		($this->block)($errorHandler);
 	}
 
 	/**

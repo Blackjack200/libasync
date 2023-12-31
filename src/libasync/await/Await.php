@@ -80,23 +80,16 @@ final class Await {
 	/**
 	 * @internal
 	 */
-	private static function wrapCoroutine(Closure $coroutineFunc, Closure $errorHandler, ?EventLoop $loop = null) : void {
+	private static function wrapCoroutine(Closure $coroutineBody, Closure $errorHandler, ?EventLoop $loop = null) : void {
 		$callTrace = PMMPUtils::printableCurrentTrace();
 		$loop ??= GlobalAsyncRuntime::getLoop();
 		if (!PRODUCTION) {
-			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineFunc);
+			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineBody);
 		}
-		$coroutine = new Fiber(static function() use ($errorHandler, $callTrace, $coroutineFunc) : void {
+		$coroutine = new Fiber(static function() use ($coroutineBody) : void {
+			//this wait make all error after start.
 			self::suspend(AwaitSignal::SIG_WAIT);
-			try {
-				$coroutineFunc();
-			} catch (Throwable $thr) {
-				try {
-					$errorHandler($thr);
-				} catch (Throwable $thr) {
-					self::crash($thr, $callTrace);
-				}
-			}
+			$coroutineBody();
 			self::suspend(AwaitSignal::SIG_FINISH);
 		});
 		$coroutine->start();
@@ -138,42 +131,42 @@ final class Await {
 		return Fiber::suspend(...$args);
 	}
 
-	private static function registerCoroutineScheduler(Fiber $fiber, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
-		$loop->add(static function($break) use ($errorHandler, $callTrace, $fiber) : void {
+	private static function registerCoroutineScheduler(Fiber $coroutine, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
+		$loop->add(static function($break) use ($errorHandler, $callTrace, $coroutine) : void {
 			for ($i = 0; $i < 2; $i++) {
+				if (!$coroutine->isSuspended()) {
+					continue;
+				}
 				try {
-					if (!$fiber->isSuspended()) {
-						continue;
-					}
-					$d = $fiber->resume();
-					switch ($d) {
-						case AwaitSignal::SIG_SET_TRACE:
-							$fiber->resume($callTrace);
-							break;
-						case AwaitSignal::SIG_WAIT:
-							break;
-						case AwaitSignal::SIG_EXCEPTION:
-							$callTrace = $fiber->resume();
-							$exp = $fiber->resume();
-							if ($exp !== null) {
-								$fiber->throw(new ExecutionException($exp, $callTrace));
-							}
-							break;
-						case AwaitSignal::SIG_FINISH:
-						case AwaitSignal::SIG_INTERRUPT:
-							$break();
-							break 2;
+					try {
+						$d = $coroutine->resume();
+						switch ($d) {
+							case AwaitSignal::SIG_SET_TRACE:
+								$coroutine->resume($callTrace);
+								break;
+							case AwaitSignal::SIG_WAIT:
+								break;
+							case AwaitSignal::SIG_EXCEPTION:
+								$callTrace = $coroutine->resume();
+								$exp = $coroutine->resume();
+								if ($exp !== null) {
+									$coroutine->throw(new ExecutionException($exp, $callTrace));
+								}
+								break;
+							case AwaitSignal::SIG_FINISH:
+							case AwaitSignal::SIG_INTERRUPT:
+								$break();
+								break 2;
+						}
+					} catch (Throwable $thr) {
+						if ($errorHandler !== null) {
+							$errorHandler($thr);
+						} else {
+							throw $thr;
+						}
 					}
 				} catch (Throwable $thr) {
-					if ($errorHandler !== null) {
-						try {
-							$errorHandler($thr);
-						} catch (Throwable $err) {
-							GlobalLogger::get()->logException($err);
-						}
-					} else {
-						self::crash($thr, $callTrace);
-					}
+					self::crash($thr, $callTrace);
 				}
 			}
 		});
