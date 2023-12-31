@@ -133,42 +133,41 @@ final class Await {
 
 	private static function registerCoroutineScheduler(Fiber $coroutine, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
 		$loop->add(static function($break) use ($errorHandler, $callTrace, $coroutine) : void {
-			for ($i = 0; $i < 2; $i++) {
-				if (!$coroutine->isSuspended()) {
-					continue;
-				}
+			if (!$coroutine->isSuspended()) {
+				return;
+			}
+			try {
 				try {
-					try {
-						$d = $coroutine->resume();
-						switch ($d) {
-							case AwaitSignal::SIG_SET_TRACE:
-								$coroutine->resume($callTrace);
-								break;
-							case AwaitSignal::SIG_WAIT:
-								break;
-							case AwaitSignal::SIG_EXCEPTION:
-								$callTrace = $coroutine->resume();
-								$exp = $coroutine->resume();
-								if ($exp !== null) {
-									$coroutine->throw(new ExecutionException($exp, $callTrace));
-								}
-								$break();
-								break 2;
-							case AwaitSignal::SIG_FINISH:
-							case AwaitSignal::SIG_INTERRUPT:
-								$break();
-								break 2;
-						}
-					} catch (Throwable $thr) {
-						if ($errorHandler !== null) {
-							$errorHandler($thr);
-						} else {
-							throw $thr;
-						}
+					$d = $coroutine->resume();
+					switch ($d) {
+						case AwaitSignal::SIG_SET_TRACE:
+							$coroutine->resume($callTrace);
+							break;
+						case AwaitSignal::SIG_WAIT:
+							break;
+						case AwaitSignal::SIG_EXCEPTION:
+							$callTrace = $coroutine->resume();
+							$exp = $coroutine->resume();
+							if ($exp !== null) {
+								$coroutine->throw(new ExecutionException($exp, $callTrace));
+							}
+							$coroutine->resume();
+							$break();
+							break;
+						case AwaitSignal::SIG_FINISH:
+						case AwaitSignal::SIG_INTERRUPT:
+							$break();
+							break;
 					}
 				} catch (Throwable $thr) {
-					self::crash($thr, $callTrace);
+					if ($errorHandler !== null) {
+						$errorHandler($thr);
+					} else {
+						throw $thr;
+					}
 				}
+			} catch (Throwable $thr) {
+				self::crash($thr, $callTrace);
 			}
 		});
 	}

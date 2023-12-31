@@ -28,6 +28,10 @@ class AwaitResult extends ThreadSafe {
 		$this->stackTrace = ThreadSafeArray::fromArray(Utils::printableCurrentTrace());
 	}
 
+	public static function empty() : static {
+		return new static(static fn() => null);
+	}
+
 	public function __destruct() {
 		if (!$this->errorHandled) {
 			if (!PRODUCTION) {

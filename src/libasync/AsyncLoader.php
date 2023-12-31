@@ -23,6 +23,6 @@ class AsyncLoader extends PluginBase {
 		$lp = new EventLoop();
 		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
 		GlobalAsyncRuntime::setLoop($lp);
-		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 2);
+		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);
 	}
 }
