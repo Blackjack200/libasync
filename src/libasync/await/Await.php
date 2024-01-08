@@ -7,6 +7,7 @@ use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
 use Fiber;
 use GlobalLogger;
+use libasync\AsyncTimings;
 use libasync\exception\ExecutionException;
 use libasync\exception\ExecutionExceptionWrapper;
 use libasync\future\Future;
@@ -84,6 +85,7 @@ final class Await {
 		if (!PRODUCTION) {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineBody);
 		}
+		$name = PMMPUtils::getNiceClosureName($coroutineBody);
 		$coroutine = new Fiber(static function() use ($coroutineBody) : void {
 			//this wait make all error after start.
 			self::suspend(AwaitSignal::SIG_WAIT);
@@ -91,7 +93,7 @@ final class Await {
 			self::suspend(AwaitSignal::SIG_FINISH);
 		});
 		$coroutine->start();
-		self::registerCoroutineScheduler($coroutine, $loop, $callTrace, $errorHandler);
+		self::registerCoroutineScheduler($name, $coroutine, $loop, $callTrace, $errorHandler);
 	}
 
 
@@ -114,7 +116,7 @@ final class Await {
 		$fiber->resume();
 		$receipt = $fiber->resume();
 		assert($receipt instanceof AsyncExecutionReceipt);
-		self::registerCoroutineScheduler($fiber, $loop, $callTrace);
+		self::registerCoroutineScheduler(PMMPUtils::getNiceClosureName($do), $fiber, $loop, $callTrace);
 		while ($loop->busy()) {
 			$loop->poll(50);
 			usleep(50);
@@ -129,14 +131,17 @@ final class Await {
 		return Fiber::suspend(...$args);
 	}
 
-	private static function registerCoroutineScheduler(Fiber $coroutine, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
-		$loop->add(static function($break) use ($errorHandler, $callTrace, $coroutine) : void {
+	private static function registerCoroutineScheduler(string $name, Fiber $coroutine, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
+		$timings = AsyncTimings::getByName($name);
+		$resumeTimings = AsyncTimings::getResumeByName($name);
+		$loop->add(static function($break) use ($resumeTimings, $timings, $errorHandler, $callTrace, $coroutine) : void {
 			if (!$coroutine->isSuspended()) {
 				return;
 			}
+			$timings->startTiming();
 			try {
 				try {
-					$d = $coroutine->resume();
+					$d = $resumeTimings->time($coroutine->resume(...));
 					switch ($d) {
 						case AwaitSignal::SIG_SET_TRACE:
 							$coroutine->resume($callTrace);
@@ -165,6 +170,7 @@ final class Await {
 			} catch (Throwable $thr) {
 				self::crash($thr, $callTrace);
 			}
+			$timings->stopTiming();
 		});
 	}
 
