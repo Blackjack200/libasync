@@ -33,12 +33,32 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		$this->queued[$type] += $count;
 		return Await::do(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
+				if (count($this->resourcesHandle[$type]) > $this->standardCapacity) {
+					break;
+				}
 				$rawRes = $prepareFunc();
 				$this->resourcesHandle[$type][] = $rawRes;
 				$this->queued[$type]--;
 				Await::sleep(1);
 			}
 		});
+	}
+
+	public function cap() : void {
+		foreach ($this->types as $type => $_) {
+			$handles = $this->resourcesHandle[$type];
+			$iMax = count($handles);
+
+			$free = $this->types[$type][1];
+
+			if ($iMax > $this->standardCapacity) {
+				for ($i = $this->standardCapacity; $i < $iMax; $i++) {
+					var_dump($type, $iMax);
+					$free($handles[$i], false);
+					unset($this->resourcesHandle[$type][$i]);
+				}
+			}
+		}
 	}
 
 	public function isRegistered(string $type) : bool { return isset($this->types[$type]); }
@@ -59,13 +79,14 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		$userRecycle = $this->types[$type][2];
 		$push = fn($res) => $this->resourcesHandle[$type][] = $res;
 
-		return new ResourceRef($res, $this->types[$type][1], static function($res) use ($push, $userRecycle) : bool {
+		return new ResourceRef($res, $this->types[$type][1], function($res) use ($push, $userRecycle) : bool {
 			$pushed = false;
 			$realPush = static function($res) use ($push, &$pushed) {
 				$pushed = true;
 				$push($res);
 			};
 			$userRecycle($res, $realPush);
+			$this->cap();
 			return $pushed;
 		});
 	}
@@ -84,5 +105,6 @@ class AsyncResourcePool implements ResourcePoolInterface {
 			throw new \InvalidArgumentException("Resource type $type is not registered");
 		}
 		$this->resourcesHandle[$type][] = $resource;
+		$this->cap();
 	}
 }
