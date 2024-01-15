@@ -29,11 +29,12 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	}
 
 	public function prepare(string $type, int $count) : AwaitResult {
+		var_dump($count);
 		$prepareFunc = $this->types[$type][0];
 		$this->queued[$type] += $count;
 		return Await::do(function() use ($count, $type, $prepareFunc) {
 			for ($i = 0; $i < $count; $i++) {
-				if (count($this->resourcesHandle[$type]) > $this->standardCapacity) {
+				if (count($this->resourcesHandle[$type]) + 1 > $this->standardCapacity) {
 					break;
 				}
 				$rawRes = $prepareFunc();
@@ -53,7 +54,6 @@ class AsyncResourcePool implements ResourcePoolInterface {
 
 			if ($iMax > $this->standardCapacity) {
 				for ($i = $this->standardCapacity; $i < $iMax; $i++) {
-					var_dump($type, $iMax);
 					$free($handles[$i], false);
 					unset($this->resourcesHandle[$type][$i]);
 				}
