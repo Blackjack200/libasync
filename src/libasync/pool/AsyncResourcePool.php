@@ -29,7 +29,6 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	}
 
 	public function prepare(string $type, int $count) : AwaitResult {
-		var_dump($count);
 		$prepareFunc = $this->types[$type][0];
 		$this->queued[$type] += $count;
 		return Await::do(function() use ($count, $type, $prepareFunc) {
