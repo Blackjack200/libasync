@@ -44,22 +44,6 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		});
 	}
 
-	public function cap() : void {
-		foreach ($this->types as $type => $_) {
-			$handles = $this->resourcesHandle[$type];
-			$iMax = count($handles);
-
-			$free = $this->types[$type][1];
-
-			if ($iMax > $this->standardCapacity) {
-				for ($i = $this->standardCapacity; $i < $iMax; $i++) {
-					$free($handles[$i], false);
-					unset($this->resourcesHandle[$type][$i]);
-				}
-			}
-		}
-	}
-
 	public function isRegistered(string $type) : bool { return isset($this->types[$type]); }
 
 	public function select(string $type) : ?ResourceRef {
@@ -85,7 +69,6 @@ class AsyncResourcePool implements ResourcePoolInterface {
 				$push($res);
 			};
 			$userRecycle($res, $realPush);
-			$this->cap();
 			return $pushed;
 		});
 	}
@@ -104,6 +87,5 @@ class AsyncResourcePool implements ResourcePoolInterface {
 			throw new \InvalidArgumentException("Resource type $type is not registered");
 		}
 		$this->resourcesHandle[$type][] = $resource;
-		$this->cap();
 	}
 }
