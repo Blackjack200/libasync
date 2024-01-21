@@ -36,10 +36,10 @@ class AsyncResourcePool implements ResourcePoolInterface {
 				if (count($this->resourcesHandle[$type]) + 1 > $this->standardCapacity) {
 					break;
 				}
-				$rawRes = $prepareFunc();
+				$rawRes = yield from $prepareFunc();
 				$this->resourcesHandle[$type][] = $rawRes;
 				$this->queued[$type]--;
-				Await::sleep(1);
+				yield from Await::sleep(1);
 			}
 		});
 	}

@@ -75,10 +75,4 @@ class AsyncExecutionReceipt extends ThreadSafe {
 			yield AwaitSignal::SIG_WAIT;
 		}
 	}
-
-	public function suspendWait() : void {
-		while (!$this->isFinished()) {
-			Await::suspend(AwaitSignal::SIG_WAIT);
-		}
-	}
 }

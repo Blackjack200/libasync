@@ -5,59 +5,62 @@ namespace libasync\await;
 use Closure;
 use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
-use Fiber;
+use Generator;
 use GlobalLogger;
 use libasync\AsyncTimings;
 use libasync\exception\ExecutionException;
 use libasync\exception\ExecutionExceptionWrapper;
-use libasync\future\Future;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
-use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 use pocketmine\Server;
 use pocketmine\thread\ThreadCrashInfoFrame;
 use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
-use RuntimeException;
 use Throwable;
 use const bootstrap\PRODUCTION;
 
 final class Await {
 	private function __construct() { }
 
-	public static function sleep(int $sec) : void {
-		self::usleep($sec * 1000);
+	/** @return Generator<void,AwaitSignal,void,void> */
+	public static function sleep(int $sec) : Generator {
+		yield from self::usleep($sec * 1000);
 	}
 
-	public static function usleep(int $microseconds) : void {
-		self::nsleep($microseconds * 1000 * 1000);
+	/** @return Generator<void,AwaitSignal,void,void> */
+	public static function usleep(int $microseconds) : Generator {
+		yield from self::nsleep($microseconds * 1000 * 1000);
 	}
 
-	public static function nsleep(int $nanoseconds) : void {
+	/** @return Generator<void,AwaitSignal,void,void> */
+	public static function nsleep(int $nanoseconds) : Generator {
 		$targetTime = hrtime(true) + $nanoseconds;
 		while (((float) hrtime(true)) < $targetTime) {
-			self::suspend(AwaitSignal::SIG_WAIT);
+			yield AwaitSignal::SIG_WAIT;
 		}
 	}
 
-	public static function tick(Closure $do, int $tick, int $times) : void {
+	/**
+	 * @param Closure(Closure $cancel):void $do
+	 */
+	public static function tick(Closure $do, int $tick, int $times) : Generator {
 		$c = true;
 		$cancel = static function() use (&$c) { $c = false; };
 		while ($times-- > 0 && $c) {
-			self::usleep($tick * (1000 / 20));
+			yield from self::usleep($tick * (1000 / 20));
 			$do($cancel);
 		}
 	}
 
-	public static function interrupt() : void {
-		self::suspend(AwaitSignal::SIG_INTERRUPT);
+	public static function interrupt() : Generator {
+		yield AwaitSignal::SIG_INTERRUPT;
 	}
 
 	/**
 	 * @template T
 	 * @param Closure():T $do
-	 * @return T
+	 * @return Generator<void,AwaitSignal|mixed,void,T>|T
 	 * @throws ExecutionException
 	 */
 	public static function threadify(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
@@ -65,14 +68,14 @@ final class Await {
 
 		$rec = $runtime->runAsync($do, $env);
 
-		self::suspend(AwaitSignal::SIG_SET_RECEIPT);
-		self::suspend($rec);
+		yield AwaitSignal::SIG_SET_RECEIPT;
+		yield $rec;
 
-		$rec->suspendWait();
+		yield from $rec->yieldWait();
 
-		self::suspend(AwaitSignal::SIG_EXCEPTION);
-		self::suspend($rec->getCallTrace());
-		self::suspend($rec->getError());
+		yield AwaitSignal::SIG_EXCEPTION;
+		yield [$rec->getCallTrace(), $rec->getError()];
+
 		return $rec->getResult();
 	}
 
@@ -86,71 +89,42 @@ final class Await {
 			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $coroutineBody);
 		}
 		$name = PMMPUtils::getNiceClosureName($coroutineBody);
-		$coroutine = new Fiber(static function() use ($coroutineBody) : void {
+		$coroutine = static function() use ($coroutineBody) : Generator {
 			//this wait make all error after start.
-			self::suspend(AwaitSignal::SIG_WAIT);
-			$coroutineBody();
-			self::suspend(AwaitSignal::SIG_FINISH);
-		});
-		$coroutine->start();
-		self::registerCoroutineScheduler($name, $coroutine, $loop, $callTrace, $errorHandler);
+			yield AwaitSignal::SIG_WAIT;
+			$body = $coroutineBody();
+			if (is_iterable($body)) {
+				yield from $body;
+			}
+			yield AwaitSignal::SIG_FINISH;
+		};
+		self::registerCoroutineScheduler($name, $coroutine(), $loop, $callTrace, $errorHandler);
 	}
 
-
-	public static function do(Closure $block, ?EventLoop $loop = null) : AwaitResult {
+	public static function do(Closure|Generator $block, ?EventLoop $loop = null) : AwaitResult {
+		if ($block instanceof Generator) {
+			$block = static fn() => $block;
+		}
 		return new AwaitResult(static fn(Closure $errorHandler) => self::wrapCoroutine($block, $errorHandler, $loop));
 	}
 
-	public static function future(Closure $do) : Future {
-		$callTrace = PMMPUtils::printableCurrentTrace();
-		$loop = new EventLoop();
-		if (!PRODUCTION) {
-			PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $do);
-		}
-		$fiber = new Fiber(static function() use ($do) : void {
-			self::suspend(AwaitSignal::SIG_WAIT);
-			$do();
-			self::suspend(AwaitSignal::SIG_FINISH);
-		});
-		$fiber->start();
-		$fiber->resume();
-		$receipt = $fiber->resume();
-		assert($receipt instanceof AsyncExecutionReceipt);
-		self::registerCoroutineScheduler(PMMPUtils::getNiceClosureName($do), $fiber, $loop, $callTrace);
-		while ($loop->busy()) {
-			$loop->poll(50);
-			usleep(50);
-		}
-		return new Future($receipt);
-	}
-
-	public static function suspend(...$args) {
-		if (Fiber::getCurrent() === null) {
-			throw new RuntimeException('Cannot call async function outside of sync context');
-		}
-		return Fiber::suspend(...$args);
-	}
-
-	private static function registerCoroutineScheduler(string $name, Fiber $coroutine, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
+	private static function registerCoroutineScheduler(string $name, Generator $coroutine, EventLoop $loop, array $callTrace, ?Closure $errorHandler = null) : void {
 		$timings = AsyncTimings::getByName($name);
 		$resumeTimings = AsyncTimings::getResumeByName($name);
-		$loop->add(static function($break) use ($resumeTimings, $timings, $errorHandler, $callTrace, $coroutine) : void {
-			if (!$coroutine->isSuspended()) {
+		$loop->add(static function($break) use ($coroutine, $resumeTimings, $timings, $errorHandler, $callTrace) : void {
+			if (!$coroutine->valid()) {
 				return;
 			}
 			$timings->startTiming();
 			try {
 				try {
-					$d = $resumeTimings->time($coroutine->resume(...));
+					$d = $coroutine->current();
 					switch ($d) {
-						case AwaitSignal::SIG_SET_TRACE:
-							$coroutine->resume($callTrace);
-							break;
 						case AwaitSignal::SIG_WAIT:
 							break;
 						case AwaitSignal::SIG_EXCEPTION:
-							$callTrace = $coroutine->resume();
-							$exp = $coroutine->resume();
+							$coroutine->next();
+							[$callTrace, $exp] = $coroutine->current();
 							if ($exp !== null) {
 								$coroutine->throw(new ExecutionException($exp, $callTrace));
 							}
@@ -160,6 +134,7 @@ final class Await {
 							$break();
 							break;
 					}
+					$resumeTimings->time($coroutine->next(...));
 				} catch (Throwable $thr) {
 					if ($errorHandler !== null) {
 						$errorHandler($thr);
