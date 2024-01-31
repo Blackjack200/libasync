@@ -3,7 +3,6 @@
 namespace libasync\runtime;
 
 use Generator;
-use libasync\await\Await;
 use libasync\await\AwaitSignal;
 use libasync\exception\ExecutionExceptionWrapper;
 use libasync\utils\Utils;
@@ -14,60 +13,51 @@ use pmmp\thread\ThreadSafeArray;
  * @template T of (scalar|null|ThreadSafe|ThreadSafeArray)
  * T must be thread-safe or ig-binary serializable
  */
-class AsyncExecutionReceipt extends ThreadSafe {
-	private ThreadSafe|string $result;
+class AsyncExecutionReceipt {
+	private mixed $result;
 	private ?string $error = null;
 	private bool $finished = false;
-	protected string $callTrace;
+	/** @var string[] */
+	protected array $callTrace;
 
 	/**
 	 * @return T
 	 */
 	public function getResult() {
-		return $this->synchronized(fn() => Utils::smartDeserialize($this->result));
+		return $this->result;
 	}
 
 	public function setError(?ExecutionExceptionWrapper $error) : void {
-		$this->synchronized(function(?ExecutionExceptionWrapper $error) {
-			$this->error = igbinary_serialize($error);
-			$this->setFinished();
-		}, $error);
+		$this->error = igbinary_serialize($error);
+		$this->setFinished();
 	}
 
 	public function getError() : ?ExecutionExceptionWrapper {
-		return $this->synchronized(function() {
-			if ($this->error === null) {
-				return null;
-			}
-			return igbinary_unserialize($this->error);
-		});
+		if ($this->error === null) {
+			return null;
+		}
+		return igbinary_unserialize($this->error);
 	}
 
 	public function isFinished() : bool {
-		return $this->synchronized(fn() => $this->finished);
+		return $this->finished;
 	}
 
 	private function setFinished() : void {
-		$this->synchronized(function() {
-			$this->finished = true;
-		});
+		$this->finished = true;
 	}
 
 	public function setResult(mixed $result) : void {
-		$this->synchronized(function(mixed $result) {
-			$this->result = Utils::smartSerialize($result);
-			$this->setFinished();
-		}, $result);
+		$this->result = $result;
+		$this->setFinished();
 	}
 
 	public function setCallTrace(array $callTrace) : void {
-		$this->synchronized(function(array $callTrace) {
-			$this->callTrace = igbinary_serialize($callTrace);
-		}, $callTrace);
+		$this->callTrace = $callTrace;
 	}
 
 	public function getCallTrace() : array {
-		return $this->synchronized(fn() => igbinary_unserialize($this->callTrace));
+		return $this->callTrace;
 	}
 
 	public function yieldWait() : Generator {

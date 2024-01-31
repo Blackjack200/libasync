@@ -4,7 +4,9 @@ namespace libasync\executor;
 
 use GlobalLogger;
 use libasync\runtime\AsyncExecutionEnvironment;
+use pmmp\thread\Runnable;
 use pocketmine\thread\log\ThreadSafeLogger;
+use pocketmine\thread\ThreadManager;
 use pocketmine\thread\Worker;
 
 class ExecutorWorker extends Worker {
@@ -38,5 +40,34 @@ class ExecutorWorker extends Worker {
 			GlobalLogger::get()->debug("Destroyed");
 		}
 		parent::onShutdown();
+	}
+
+	public function autoCollect() : void {
+		$this->collect(static function(Runnable $runnable) : bool {
+			if ($runnable instanceof ExecutorWorkerTask) {
+				if ($runnable->isFinished()) {
+					$runnable->onCompletion();
+					return true;
+				}
+				return false;
+			}
+			return true;
+		});
+	}
+
+	public function quit() : void {
+		$this->isKilled = true;
+
+		if (!$this->isShutdown()) {
+			$this->synchronized(function() : void {
+				while ($this->getStacked() > 0) {
+					$this->autoCollect();
+				}
+			});
+			$this->notify();
+			$this->shutdown();
+		}
+
+		ThreadManager::getInstance()->remove($this);
 	}
 }

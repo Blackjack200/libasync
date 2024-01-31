@@ -8,6 +8,7 @@ use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 use libasync\utils\ClosureUtils;
+use pmmp\thread\Runnable;
 use pocketmine\utils\Utils as PMMPUtils;
 
 class ExecutorPool implements AsyncRuntime {
@@ -47,14 +48,14 @@ class ExecutorPool implements AsyncRuntime {
 		ClosureUtils::validateThreadSafety($closure);
 		$receipt = new AsyncExecutionReceipt();
 		$receipt->setCallTrace(PMMPUtils::printableCurrentTrace());
-		$task = new ExecutorWorkerTask($closure, $receipt, $env);
+		$task = new ExecutorWorkerTask($receipt, $closure, $env);
 		$this->workers[mt_rand(1, $this->threadCount) - 1]->stack($task);
 		return $receipt;
 	}
 
 	public function collect() : void {
 		foreach ($this->workers as $worker) {
-			$worker->collect();
+			$worker->autoCollect();
 			//\GlobalLogger::get()->debug("Still waiting");
 		}
 	}
