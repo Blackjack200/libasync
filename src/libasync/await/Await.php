@@ -136,6 +136,7 @@ final class Await {
 					}
 					$resumeTimings->time($coroutine->next(...));
 				} catch (Throwable $thr) {
+					$break();
 					if ($errorHandler !== null) {
 						$errorHandler($thr);
 					} else {
@@ -143,6 +144,7 @@ final class Await {
 					}
 				}
 			} catch (Throwable $thr) {
+				$break();
 				self::crash($thr, $callTrace);
 			}
 			$timings->stopTiming();
