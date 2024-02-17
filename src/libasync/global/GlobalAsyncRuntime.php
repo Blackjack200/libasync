@@ -7,6 +7,7 @@ use libasync\runtime\AsyncRuntime;
 
 final class GlobalAsyncRuntime {
 	private function __construct() { }
+
 	private static ?AsyncRuntime $runtime = null;
 	private static ?EventLoop $loop = null;
 

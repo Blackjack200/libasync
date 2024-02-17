@@ -5,7 +5,6 @@ namespace libasync\runtime;
 use Generator;
 use libasync\await\AwaitSignal;
 use libasync\exception\ExecutionExceptionWrapper;
-use libasync\utils\Utils;
 use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 

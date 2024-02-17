@@ -11,6 +11,7 @@ use pmmp\thread\ThreadSafeArray;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
 use pocketmine\utils\Utils;
+use prokits\utils\StringFormat;
 use prokits\utils\StringUtils;
 use Throwable;
 use const bootstrap\PRODUCTION;
@@ -86,7 +87,7 @@ class AwaitResult extends ThreadSafe {
 			try {
 				if ($sender instanceof Player && $sender->isOnline()) {
 					if (class_exists(StringUtils::class)) {
-						$sender->sendMessage(StringUtils::response(false, 'async error encountered'));
+						$sender->sendMessage(StringFormat::level(StringFormat::EMERGENCY)->response(false, 'async error encountered'));
 					} else {
 						$sender->sendMessage('async error encountered');
 					}
