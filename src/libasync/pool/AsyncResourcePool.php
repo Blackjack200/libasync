@@ -18,6 +18,8 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	private array $resourcesHandle = [];
 	private array $queued = [];
 
+	public function setStandardCapacity(int $standardCapacity) : void { $this->standardCapacity = $standardCapacity; }
+
 	/**
 	 * @inheritDoc
 	 */
@@ -39,7 +41,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 				$rawRes = yield from $prepareFunc();
 				$this->resourcesHandle[$type][] = $rawRes;
 				$this->queued[$type]--;
-				yield from Await::sleep(1);
+				yield;
 			}
 		});
 	}
@@ -59,18 +61,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 			return null;
 		}
 		$res = array_pop($this->resourcesHandle[$type]);
-		$userRecycle = $this->types[$type][2];
-		$push = fn($res) => $this->resourcesHandle[$type][] = $res;
-
-		return new ResourceRef($res, $this->types[$type][1], function($res) use ($push, $userRecycle) : bool {
-			$pushed = false;
-			$realPush = static function($res) use ($push, &$pushed) {
-				$pushed = true;
-				$push($res);
-			};
-			$userRecycle($res, $realPush);
-			return $pushed;
-		});
+		return $this->packRes($type, $res);
 	}
 
 	public function close() : void {
@@ -87,5 +78,20 @@ class AsyncResourcePool implements ResourcePoolInterface {
 			throw new \InvalidArgumentException("Resource type $type is not registered");
 		}
 		$this->resourcesHandle[$type][] = $resource;
+	}
+
+	private function packRes(string $type, mixed $res) : ResourceRef {
+		$userRecycle = $this->types[$type][2];
+		$push = fn($res) => $this->resourcesHandle[$type][] = $res;
+
+		return new ResourceRef($res, $this->types[$type][1], function($res) use ($push, $userRecycle) : bool {
+			$pushed = false;
+			$realPush = static function($res) use ($push, &$pushed) {
+				$pushed = true;
+				$push($res);
+			};
+			$userRecycle($res, $realPush);
+			return $pushed;
+		});
 	}
 }
