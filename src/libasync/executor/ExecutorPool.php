@@ -11,9 +11,11 @@ use libasync\utils\ClosureUtils;
 use pocketmine\utils\Utils as PMMPUtils;
 
 class ExecutorPool implements AsyncRuntime {
+	private Closure $unregister;
 	private int $threadCount;
 	/** @var ExecutorWorker[] */
 	private array $workers = [];
+	private array $pendingTask = [];
 
 	public function __construct(
 		WorkerFactory $factory,
@@ -24,7 +26,7 @@ class ExecutorPool implements AsyncRuntime {
 			$this->workers[] = $factory->new((string) $i);
 		}
 		$loop = $this;
-		GlobalAsyncRuntime::getLoop()->add(static fn() => $loop->collect());
+		$this->unregister = GlobalAsyncRuntime::getLoop()->add(static fn() => $loop->collect());
 	}
 
 	public function start() : void {
@@ -37,6 +39,7 @@ class ExecutorPool implements AsyncRuntime {
 		foreach ($this->workers as $thread) {
 			$thread->quit();
 		}
+		($this->unregister)();
 	}
 
 	public function getThreadCount() : int {
@@ -47,16 +50,24 @@ class ExecutorPool implements AsyncRuntime {
 		ClosureUtils::validateThreadSafety($closure);
 		$receipt = new AsyncExecutionReceipt();
 		$receipt->setCallTrace(PMMPUtils::printableCurrentTrace());
-		$task = new ExecutorWorkerTask($receipt, $closure, $env);
-		$this->workers[0]->stack($task);
+		$this->pendingTask[] = new ExecutorWorkerTask($receipt, $closure, $env);
 		return $receipt;
 	}
 
 	public function collect() : void {
 		foreach ($this->workers as $worker) {
+			if ($worker->getStacked() === 0) {
+				$shift = array_shift($this->pendingTask);
+				if ($shift !== null) {
+					$worker->stack($shift);
+				} else {
+					break;
+				}
+			}
+		}
+		foreach ($this->workers as $worker) {
 			$worker->autoCollect();
 			//\GlobalLogger::get()->debug("Still waiting");
 		}
-		usort($this->workers, static fn(ExecutorWorker $a, ExecutorWorker $b) => $a->getStacked() <=> $b->getStacked());
 	}
 }

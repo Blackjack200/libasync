@@ -28,8 +28,10 @@ class EventLoop {
 	/**
 	 * @param \Closure(\Closure $break):void $c
 	 */
-	public function add(Closure $c) : void {
-		$this->callbacks[] = $c;
+	public function add(Closure $c) : Closure {
+		$id = spl_object_id($c);
+		$this->callbacks[$id] = $c;
+		return function() use ($id) { unset($this->callbacks[$id]); };
 	}
 
 	public function busy() : bool {
