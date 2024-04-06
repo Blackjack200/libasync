@@ -12,7 +12,7 @@ use pmmp\thread\ThreadSafeArray;
  * @template T
  * @implements BusInterface<T>
  */
-class ThreadedBus extends ThreadSafe implements BusInterface {
+class ParallelBus extends ThreadSafe implements BusInterface {
 	private ThreadSafeArray $buffer;
 	private ThreadSafeArray $handler;
 

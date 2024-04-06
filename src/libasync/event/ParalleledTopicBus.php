@@ -6,7 +6,7 @@ use Closure;
 use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 
-class ThreadedTopicBus extends ThreadSafe {
+class ParalleledTopicBus extends ThreadSafe {
 	private ThreadSafeArray $buffer;
 	private ThreadSafeArray $handler;
 

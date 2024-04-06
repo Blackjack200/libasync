@@ -8,7 +8,7 @@ use libasync\utils\ClosureUtils;
 /**
  * @template T
  */
-final class SyncedBus implements BusInterface {
+final class SerialBus implements BusInterface {
 	private array $handler;
 
 	/**

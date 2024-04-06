@@ -24,17 +24,22 @@ final class Await {
 	private function __construct() { }
 
 	/** @return Generator<void,AwaitSignal,void,void> */
-	public static function sleep(int $sec) : Generator {
-		yield from self::usleep($sec * 1000);
+	public static function suspend() : Generator {
+		yield AwaitSignal::SIG_WAIT;
 	}
 
 	/** @return Generator<void,AwaitSignal,void,void> */
-	public static function usleep(int $microseconds) : Generator {
-		yield from self::nsleep($microseconds * 1000 * 1000);
+	public static function delay(int $sec) : Generator {
+		yield from self::udelay($sec * 1000);
 	}
 
 	/** @return Generator<void,AwaitSignal,void,void> */
-	public static function nsleep(int $nanoseconds) : Generator {
+	public static function udelay(int $microseconds) : Generator {
+		yield from self::ndelay($microseconds * 1000 * 1000);
+	}
+
+	/** @return Generator<void,AwaitSignal,void,void> */
+	public static function ndelay(int $nanoseconds) : Generator {
 		$targetTime = hrtime(true) + $nanoseconds;
 		while (((float) hrtime(true)) < $targetTime) {
 			yield AwaitSignal::SIG_WAIT;
@@ -48,7 +53,7 @@ final class Await {
 		$c = true;
 		$cancel = static function() use (&$c) { $c = false; };
 		while ($times-- > 0 && $c) {
-			yield from self::usleep($tick * (1000 / 20));
+			yield from self::udelay($tick * (1000 / 20));
 			$do($cancel);
 		}
 	}
