@@ -23,6 +23,13 @@ use const bootstrap\PRODUCTION;
 final class Await {
 	private function __construct() { }
 
+	public static function f2c(Closure $f) : Generator {
+		$v = $f();
+		if ($v instanceof Generator) {
+			yield from $v;
+		}
+	}
+
 	/** @return Generator<void,AwaitSignal,void,void> */
 	public static function suspend() : Generator {
 		yield AwaitSignal::SIG_WAIT;
@@ -97,10 +104,7 @@ final class Await {
 		$coroutine = static function() use ($coroutineBody) : Generator {
 			//this wait make all error after start.
 			yield AwaitSignal::SIG_WAIT;
-			$body = $coroutineBody();
-			if (is_iterable($body)) {
-				yield from $body;
-			}
+			yield from Await::f2c($coroutineBody);
 			yield AwaitSignal::SIG_FINISH;
 		};
 		self::registerCoroutineScheduler($name, $coroutine(), $loop, $callTrace, $errorHandler);
