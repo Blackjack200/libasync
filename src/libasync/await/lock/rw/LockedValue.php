@@ -3,6 +3,7 @@
 namespace libasync\await\lock\rw;
 
 use Closure;
+use Generator;
 use libasync\await\Await;
 
 /**
@@ -21,44 +22,47 @@ class LockedValue {
 	}
 
 	/**
-	 * @param Closure(Closure(T $v):void $set):mixed|\Generator $func
+	 * @param Closure(Closure(T $v):void $set,Closure():T $get):(void|Generator) $func
+	 * @return Generator<void,void,void,bool>|bool
 	 */
 	public function set(Closure $func) {
 		$w = $this->lock->write();
 		yield from $w->lock();
-		$r = yield from Await::f2c(fn() => $func(fn($v) => $this->value = $v));
+		$r = yield from Await::f2c(fn() => $func(fn($v) => $this->value = $v, fn() => $this->value));
 		$w->unlock();
 		return $r;
 	}
 
 	/**
-	 * @param Closure(Closure(T $v):void $set):void|\Generator $func
+	 * @template TReturn of (Generator|mixed|null)
+	 * @param Closure(Closure(T $v):void $set,Closure():T $get):TReturn $func
+	 * @param TReturn &$result
+	 * @return Generator<void,void,void,bool>|bool
 	 */
-	public function trySet(Closure $func, &$result) : bool|\Generator {
+	public function trySet(Closure $func, &$result) : bool|Generator {
 		$w = $this->lock->write();
 		if ($w->isLocked()) {
 			return false;
 		}
-		var_dump($w->isLocked());
 		yield from $w->lock();
-		var_dump($w->isLocked());
 		$result = yield from Await::f2c(fn() => $func(function($v) {
 			$this->value = $v;
 			$this->lastWrite = $v;
-		}));
+		}, fn() => $this->value));
 		$w->unlock();
 		return true;
 	}
 
 	/**
-	 * @param Closure(T):mixed|\Generator $func
+	 * @param Closure(T):(void|Generator) $func
+	 * * @return Generator<void,void,void,T|null>|T|null
 	 */
 	public function get(Closure $func) {
-		$r = $this->lock->write();
-		yield from $r->lock();
-		$r = yield from Await::f2c(fn() => $func($this->value));
-		$r->unlock();
-		return $r;
+		$l = $this->lock->write();
+		yield from $l->lock();
+		$ret = yield from Await::f2c(fn() => $func($this->value));
+		$l->unlock();
+		return $ret;
 	}
 
 	/** @return T|null */

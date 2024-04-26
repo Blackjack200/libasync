@@ -3,6 +3,7 @@
 namespace libasync\await\lock\rw;
 
 /**
+ * @internal
  * @template T
  */
 class BoxedValue {
