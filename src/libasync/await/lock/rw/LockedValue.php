@@ -39,13 +39,13 @@ class LockedValue {
 	 * @param TReturn &$result
 	 * @return Generator<void,void,void,bool>|bool
 	 */
-	public function trySet(Closure $func, &$result) : bool|Generator {
+	public function trySet(Closure $func) : bool|Generator {
 		$w = $this->lock->write();
 		if ($w->isLocked()) {
 			return false;
 		}
 		yield from $w->lock();
-		$result = yield from Await::f2c(fn() => $func(function($v) {
+		yield from Await::f2c(fn() => $func(function($v) {
 			$this->value = $v;
 			$this->lastWrite = $v;
 		}, fn() => $this->value));
