@@ -2,6 +2,8 @@
 
 namespace libasync\await\lock\rw;
 
+use libasync\await\lock\Lock;
+
 /**
  * @template T
  */
@@ -10,17 +12,17 @@ readonly class ReadWriteLock {
 	protected WriteLock $writing;
 
 	public function __construct() {
-		$read = new BoxedValue(false);
-		$write = new BoxedValue(false);
+		$read = new RefCell(false);
+		$write = new RefCell(false);
 		$this->reading = new ReadLock($write, $read);
 		$this->writing = new WriteLock($write, $read);
 	}
 
-	public function read() : ReadLock {
+	public function read() : Lock {
 		return $this->reading;
 	}
 
-	public function write() : WriteLock {
+	public function write() : Lock {
 		return $this->writing;
 	}
 }

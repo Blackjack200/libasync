@@ -7,12 +7,15 @@ use libasync\await\AwaitSignal;
 use libasync\await\lock\Lock;
 use LogicException;
 
+/**
+ * @internal
+ */
 readonly class WriteLock implements Lock {
 	public function __construct(
-		/** @var BoxedValue<bool> */
-		private BoxedValue $writing,
-		/** @var BoxedValue<bool> */
-		private BoxedValue $reading,
+		/** @var RefCell<bool> */
+		private RefCell $writing,
+		/** @var RefCell<bool> */
+		private RefCell $reading,
 	) {
 	}
 

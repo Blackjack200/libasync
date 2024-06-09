@@ -9,7 +9,7 @@ use libasync\await\Await;
 /**
  * @template T
  */
-class LockedValue {
+class MutexRefCell {
 	protected ReadWriteLock $lock;
 	/** @var T|null */
 	protected $lastWrite = null;

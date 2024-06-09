@@ -6,7 +6,7 @@ namespace libasync\await\lock\rw;
  * @internal
  * @template T
  */
-class BoxedValue {
+class RefCell {
 	public function __construct(
 		/** @var T */
 		public $value
