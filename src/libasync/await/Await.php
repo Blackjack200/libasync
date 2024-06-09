@@ -92,7 +92,7 @@ final class Await {
 				PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $block);
 			}
 			return new AwaitResult(
-				static fn($errorHandler) => new Coroutine(self::f2c($block), $errorHandler),
+				static fn($errorHandler) => new Coroutine($block instanceof Closure ? self::f2c($block) : $block, $errorHandler),
 				static fn(Coroutine $coroutine) => $coroutine->register($loop ?? GlobalAsyncRuntime::getLoop())
 			);
 		} catch (Throwable $thr) {
