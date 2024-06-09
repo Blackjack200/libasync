@@ -3,6 +3,7 @@
 namespace libasync;
 
 use libasync\await\ClassicEventLoop;
+use libasync\await\SnoozeAwareEventLoop;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
 use pocketmine\plugin\PluginBase;
@@ -20,8 +21,18 @@ class AsyncLoader extends PluginBase {
 			define('bootstrap\PRODUCTION', false);
 		}
 
-		$lp = new ClassicEventLoop();
 		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
+		$lp = new SnoozeAwareEventLoop($this->getServer()->getTickSleeper());
+		GlobalAsyncRuntime::setLoop($lp);
+		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(function() use ($lp) {
+			if ($lp->busy()) {
+				$lp->wakeupSleeper();
+			}
+		}), 1);
+	}
+
+	private function classLoop() : void {
+		$lp = new ClassicEventLoop();
 		GlobalAsyncRuntime::setLoop($lp);
 		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);
 	}

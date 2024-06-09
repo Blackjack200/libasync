@@ -51,6 +51,7 @@ class ExecutorWorkerTask extends Runnable {
 			$this->setError($err);
 		} finally {
 			$this->finished = true;
+			ExecutorWorker::getNotifier()->wakeupSleeper();
 		}
 	}
 

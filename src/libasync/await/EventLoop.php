@@ -7,7 +7,7 @@ use Closure;
 interface EventLoop {
 	/**
 	 * @param Closure(Closure $break):void $c
-	 * @return Closure() remove from loop
+	 * @return Closure called when $c is finished, it removes $c from loop
 	 */
 	public function add(Closure $c) : Closure;
 }

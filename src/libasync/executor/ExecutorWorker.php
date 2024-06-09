@@ -5,20 +5,36 @@ namespace libasync\executor;
 use GlobalLogger;
 use libasync\runtime\AsyncExecutionEnvironment;
 use pmmp\thread\Runnable;
+use pocketmine\snooze\SleeperHandlerEntry;
+use pocketmine\snooze\SleeperNotifier;
 use pocketmine\thread\log\ThreadSafeLogger;
 use pocketmine\thread\ThreadManager;
 use pocketmine\thread\Worker;
+use pocketmine\utils\AssumptionFailedError;
 
 class ExecutorWorker extends Worker {
 	private bool $readyToUse = false;
 
 	public static array $paramsThreadLocal = [];
+	private SleeperHandlerEntry $sleeperEntry;
+	private static ?SleeperNotifier $notifier = null;
+
+	public static function getNotifier() : SleeperNotifier {
+		if (static::$notifier !== null) {
+			return static::$notifier;
+		}
+		throw new AssumptionFailedError("SleeperNotifier not found in thread-local storage");
+	}
 
 	public function __construct(
 		private readonly ThreadSafeLogger           $logger,
 		private readonly ?string                    $autoload,
 		private readonly ?AsyncExecutionEnvironment $env,
 	) {
+	}
+
+	public function setSleeperHandlerEntry(SleeperHandlerEntry $entry) : void {
+		$this->sleeperEntry = $entry;
 	}
 
 	protected function onRun() : void {
@@ -28,6 +44,7 @@ class ExecutorWorker extends Worker {
 		}
 		$this->readyToUse = true;
 		static::$paramsThreadLocal[spl_object_id($this)] = $this->env->createArgs();
+		static::$notifier = $this->sleeperEntry->createNotifier();
 	}
 
 	public function isReadyToUse() : bool { return $this->readyToUse; }

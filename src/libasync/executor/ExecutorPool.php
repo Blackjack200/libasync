@@ -3,30 +3,34 @@
 namespace libasync\executor;
 
 use Closure;
-use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
 use libasync\utils\ClosureUtils;
+use pocketmine\snooze\SleeperHandler;
 use pocketmine\utils\Utils as PMMPUtils;
 
 class ExecutorPool implements AsyncRuntime {
-	private Closure $unregister;
 	private int $threadCount;
 	/** @var ExecutorWorker[] */
 	private array $workers = [];
-	private array $pendingTask = [];
+	/** @var int[] */
+	private array $notifiers = [];
 
 	public function __construct(
+		private readonly SleeperHandler $handler,
 		WorkerFactory $factory,
 		int           $threadCount,
 	) {
 		$this->threadCount = $threadCount;
 		for ($i = 1; $i <= $threadCount; $i++) {
-			$this->workers[] = $factory->new((string) $i);
+			$worker = $factory->new((string) $i);
+			assert($worker instanceof ExecutorWorker);
+			$entry = $this->handler->addNotifier(fn() => $worker->autoCollect());
+			$this->notifiers[] = $entry->getNotifierId();
+			$worker->setSleeperHandlerEntry($entry);
+			$this->workers[] = $worker;
 		}
-		$loop = $this;
-		$this->unregister = GlobalAsyncRuntime::getLoop()->add(static fn() => $loop->collect());
 	}
 
 	public function start() : void {
@@ -39,7 +43,9 @@ class ExecutorPool implements AsyncRuntime {
 		foreach ($this->workers as $thread) {
 			$thread->quit();
 		}
-		($this->unregister)();
+		foreach ($this->notifiers as $notifier) {
+			$this->handler->removeNotifier($notifier);
+		}
 	}
 
 	public function getThreadCount() : int {
@@ -50,24 +56,14 @@ class ExecutorPool implements AsyncRuntime {
 		ClosureUtils::validateThreadSafety($closure);
 		$receipt = new AsyncExecutionReceipt();
 		$receipt->setCallTrace(PMMPUtils::printableCurrentTrace());
-		$this->pendingTask[] = new ExecutorWorkerTask($receipt, $closure, $env);
+		usort($this->workers, static fn(ExecutorWorker $a, ExecutorWorker $b) => $a->getStacked() <=> $b->getStacked());
+		$this->workers[0]->stack(new ExecutorWorkerTask($receipt, $closure, $env));
 		return $receipt;
 	}
 
 	public function collect() : void {
 		foreach ($this->workers as $worker) {
-			if ($worker->getStacked() === 0) {
-				$shift = array_shift($this->pendingTask);
-				if ($shift !== null) {
-					$worker->stack($shift);
-				} else {
-					break;
-				}
-			}
-		}
-		foreach ($this->workers as $worker) {
 			$worker->autoCollect();
-			//\GlobalLogger::get()->debug("Still waiting");
 		}
 	}
 }
