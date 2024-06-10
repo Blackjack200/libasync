@@ -36,4 +36,8 @@ final class SerialBus implements BusInterface {
 	public function hasSubscriber($value) : bool {
 		return isset($this->handler[get_debug_type($value)]);
 	}
+
+	public function clear() : void {
+		$this->handler = [];
+	}
 }

@@ -58,4 +58,8 @@ class ParallelBus extends ThreadSafe implements BusInterface {
 	public function hasSubscriber($value) : bool {
 		return $this->synchronized(fn() => isset($this->handler[get_debug_type($value)]));
 	}
+
+	public function clear() : void {
+		$this->handler = new ThreadSafeArray();
+	}
 }
