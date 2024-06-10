@@ -39,6 +39,7 @@ class ExecutorWorker extends Worker {
 
 	protected function onRun() : void {
 		GlobalLogger::set($this->logger);
+		gc_enable();
 		if ($this->autoload !== null) {
 			require_once $this->autoload;
 		}

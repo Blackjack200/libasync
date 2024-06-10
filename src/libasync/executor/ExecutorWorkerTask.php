@@ -53,6 +53,7 @@ class ExecutorWorkerTask extends Runnable {
 			$this->finished = true;
 			ExecutorWorker::getNotifier()->wakeupSleeper();
 		}
+		gc_collect_cycles();
 	}
 
 	public function onCompletion() : void {
