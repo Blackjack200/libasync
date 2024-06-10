@@ -54,4 +54,8 @@ class ParallelBus extends ThreadSafe implements BusInterface {
 	public function publish(mixed $value) : void {
 		$this->buffer->synchronized(fn() => $this->buffer[] = Utils::smartSerialize($value));
 	}
+
+	public function hasSubscriber($value) : bool {
+		return $this->synchronized(fn() => isset($this->handler[get_debug_type($value)]));
+	}
 }

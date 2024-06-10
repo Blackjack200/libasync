@@ -24,8 +24,16 @@ final class SerialBus implements BusInterface {
 	 * @param T $value
 	 */
 	public function publish(mixed $value) : void {
-		foreach ($this->handler[get_debug_type($value)] ?? [] as $handler) {
+		$typ = get_debug_type($value);
+		if (!isset($this->handler[$typ])) {
+			return;
+		}
+		foreach ($this->handler[$typ] as $handler) {
 			$handler($value);
 		}
+	}
+
+	public function hasSubscriber($value) : bool {
+		return isset($this->handler[get_debug_type($value)]);
 	}
 }

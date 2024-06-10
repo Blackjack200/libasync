@@ -15,4 +15,6 @@ interface BusInterface {
 	 * @param T $value
 	 */
 	public function publish(mixed $value) : void;
+
+	public function hasSubscriber($value) : bool;
 }
