@@ -3,6 +3,7 @@
 namespace libasync\executor;
 
 use Closure;
+use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncExecutionReceipt;
 use libasync\runtime\AsyncRuntime;
@@ -11,11 +12,14 @@ use pocketmine\snooze\SleeperHandler;
 use pocketmine\utils\Utils as PMMPUtils;
 
 class ExecutorPool implements AsyncRuntime {
+	private Closure $unregister;
 	private int $threadCount;
 	/** @var ExecutorWorker[] */
 	private array $workers = [];
 	/** @var int[] */
 	private array $notifiers = [];
+	/** @var ExecutorWorkerTask[] */
+	private array $pendingTask = [];
 
 	public function __construct(
 		private readonly SleeperHandler $handler,
@@ -31,6 +35,7 @@ class ExecutorPool implements AsyncRuntime {
 			$worker->setSleeperHandlerEntry($entry);
 			$this->workers[] = $worker;
 		}
+		$this->unregister = GlobalAsyncRuntime::getLoop()->add(fn() => $this->collect());
 	}
 
 	public function start() : void {
@@ -46,6 +51,7 @@ class ExecutorPool implements AsyncRuntime {
 		foreach ($this->notifiers as $notifier) {
 			$this->handler->removeNotifier($notifier);
 		}
+		($this->unregister)();
 	}
 
 	public function getThreadCount() : int {
@@ -57,13 +63,20 @@ class ExecutorPool implements AsyncRuntime {
 		$receipt = new AsyncExecutionReceipt();
 		$receipt->setCallTrace(PMMPUtils::printableCurrentTrace());
 		usort($this->workers, static fn(ExecutorWorker $a, ExecutorWorker $b) => $a->getStacked() <=> $b->getStacked());
-		$this->workers[0]->stack(new ExecutorWorkerTask($receipt, $closure, $env));
+		$this->pendingTask[] = new ExecutorWorkerTask($receipt, $closure, $env);
 		return $receipt;
 	}
 
 	public function collect() : void {
 		foreach ($this->workers as $worker) {
-			$worker->autoCollect();
+			if ($worker->getStacked() === 0) {
+				$shift = array_shift($this->pendingTask);
+				if ($shift !== null) {
+					$worker->stack($shift);
+				} else {
+					break;
+				}
+			}
 		}
 	}
 }
