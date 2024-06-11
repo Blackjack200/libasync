@@ -64,6 +64,7 @@ class ExecutorWorker extends Worker {
 		$this->collect(static function(Runnable $runnable) : bool {
 			if ($runnable instanceof ExecutorWorkerTask) {
 				if ($runnable->isFinished()) {
+					var_dump("CLCT");
 					$runnable->onCompletion();
 					return true;
 				}

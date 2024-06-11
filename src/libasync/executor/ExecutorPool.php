@@ -77,5 +77,8 @@ class ExecutorPool implements AsyncRuntime {
 				}
 			}
 		}
+		foreach ($this->workers as $worker) {
+			$worker->autoCollect();
+		}
 	}
 }

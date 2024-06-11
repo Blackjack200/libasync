@@ -9,7 +9,6 @@ use pocketmine\snooze\SleeperNotifier;
 class SnoozeAwareEventLoop implements EventLoop {
 	/** @var \SplObjectStorage<Closure(Closure $unsubscribe):void> */
 	private \SplObjectStorage $callbacks;
-	private int $notifierCounter = 0;
 	private readonly SleeperNotifier $notifier;
 
 	public function __construct(
@@ -20,13 +19,9 @@ class SnoozeAwareEventLoop implements EventLoop {
 	}
 
 	public function poll(int $microsecond = PHP_INT_MAX) : void {
-		//var_dump($this->notifierCounter . "pending...");
 		$pending = [];
 		foreach ($this->callbacks as $await) {
-			$pending[] = fn() => $await(function() use ($await) : void {
-				$this->callbacks->detach($await);
-				$this->notifierCounter--;
-			});
+			$pending[] = fn() => $await(fn() => $this->callbacks->detach($await));
 		}
 
 		$d = $microsecond * 1000 * 1000;
@@ -38,14 +33,10 @@ class SnoozeAwareEventLoop implements EventLoop {
 			}
 			$await();
 		}
-		foreach ($this->callbacks as $callback) {
-			//	var_dump(Utils::getNiceClosureName($callback));
-		}
-		//var_dump($this->notifierCounter . "left...");
 	}
 
 	public function busy() : bool {
-		return $this->notifierCounter !== 0;
+		return count($this->callbacks) !== 0;
 	}
 
 	/**
@@ -53,12 +44,7 @@ class SnoozeAwareEventLoop implements EventLoop {
 	 */
 	public function add(Closure $c) : Closure {
 		$this->callbacks->attach($c);
-		$this->notifierCounter++;
-		return function() use ($c) {
-			$this->callbacks->detach($c);
-			$this->notifierCounter--;
-			$this->notifier->wakeupSleeper();
-		};
+		return fn() => $this->callbacks->detach($c);
 	}
 
 	public function wakeupSleeper() : void {
