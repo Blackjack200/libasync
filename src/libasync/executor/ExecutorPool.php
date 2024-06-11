@@ -62,7 +62,6 @@ class ExecutorPool implements AsyncRuntime {
 		ClosureUtils::validateThreadSafety($closure);
 		$receipt = new AsyncExecutionReceipt();
 		$receipt->setCallTrace(PMMPUtils::printableCurrentTrace());
-		usort($this->workers, static fn(ExecutorWorker $a, ExecutorWorker $b) => $a->getStacked() <=> $b->getStacked());
 		$this->pendingTask[] = new ExecutorWorkerTask($receipt, $closure, $env);
 		return $receipt;
 	}
