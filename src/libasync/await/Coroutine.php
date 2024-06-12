@@ -71,7 +71,7 @@ class Coroutine {
 			} catch (\Throwable $thr) {
 				$break();
 				if ($this->errorHandler !== null) {
-					($this->errorHandler)($thr);
+					($this->errorHandler)(new ExecutionException(ExecutionExceptionWrapper::wrap($thr), $this->callTrace));
 				} else {
 					self::crash($thr, $this->callTrace);
 				}
