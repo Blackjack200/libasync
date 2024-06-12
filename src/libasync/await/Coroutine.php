@@ -44,43 +44,40 @@ class Coroutine {
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
 		$loop->add(function($break) use ($resumeTimings, $timings) : void {
 			$gen = $this->generator;
-			if (!$gen->valid()) {
-				return;
-			}
 			//var_dump($this->getName());
 			$timings->startTiming();
 			try {
-				try {
-					$d = $gen->current();
-					switch ($d) {
-						case AwaitSignal::SIG_WAIT:
-							break;
-						case AwaitSignal::SIG_EXCEPTION:
-							$gen->next();
-							[$callTrace, $exp] = $gen->current();
-							if ($exp !== null) {
-								$gen->throw(new ExecutionException($exp, $callTrace));
-							}
-							break;
-						case AwaitSignal::SIG_FINISH:
-						case AwaitSignal::SIG_INTERRUPT:
-							$break();
-							break;
-					}
-					$resumeTimings->time($gen->next(...));
-				} catch (\Throwable $thr) {
-					$break();
-					if ($this->errorHandler !== null) {
-						($this->errorHandler)($thr);
-					} else {
-						throw $thr;
-					}
+				if (!$gen->valid()) {
+					$timings->stopTiming();
+					return;
 				}
+				$d = $gen->current();
+				switch ($d) {
+					case AwaitSignal::SIG_WAIT:
+						break;
+					case AwaitSignal::SIG_EXCEPTION:
+						$gen->next();
+						[$callTrace, $exp] = $gen->current();
+						if ($exp !== null) {
+							$gen->throw(new ExecutionException($exp, $callTrace));
+						}
+						break;
+					case AwaitSignal::SIG_FINISH:
+					case AwaitSignal::SIG_INTERRUPT:
+						$break();
+						break;
+				}
+				$resumeTimings->time($gen->next(...));
 			} catch (\Throwable $thr) {
 				$break();
-				self::crash($thr, $this->callTrace);
+				if ($this->errorHandler !== null) {
+					($this->errorHandler)($thr);
+				} else {
+					self::crash($thr, $this->callTrace);
+				}
+			} finally {
+				$timings->stopTiming();
 			}
-			$timings->stopTiming();
 		});
 	}
 
