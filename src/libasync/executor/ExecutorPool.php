@@ -16,8 +16,6 @@ class ExecutorPool implements AsyncRuntime {
 	private int $threadCount;
 	/** @var ExecutorWorker[] */
 	private array $workers = [];
-	/** @var int[] */
-	private array $notifiers = [];
 	/** @var ExecutorWorkerTask[] */
 	private array $pendingTask = [];
 
@@ -30,9 +28,6 @@ class ExecutorPool implements AsyncRuntime {
 		for ($i = 1; $i <= $threadCount; $i++) {
 			$worker = $factory->new((string) $i);
 			assert($worker instanceof ExecutorWorker);
-			$entry = $this->handler->addNotifier(fn() => $worker->autoCollect());
-			$this->notifiers[] = $entry->getNotifierId();
-			$worker->setSleeperHandlerEntry($entry);
 			$this->workers[] = $worker;
 		}
 		$this->unregister = GlobalAsyncRuntime::getLoop()->add(fn() => $this->collect());
@@ -47,9 +42,6 @@ class ExecutorPool implements AsyncRuntime {
 	public function shutdown() : void {
 		foreach ($this->workers as $thread) {
 			$thread->quit();
-		}
-		foreach ($this->notifiers as $notifier) {
-			$this->handler->removeNotifier($notifier);
 		}
 		($this->unregister)();
 	}
@@ -68,6 +60,9 @@ class ExecutorPool implements AsyncRuntime {
 
 	public function collect() : void {
 		foreach ($this->workers as $worker) {
+			$worker->autoCollect();
+		}
+		foreach ($this->workers as $worker) {
 			if ($worker->getStacked() === 0) {
 				$shift = array_shift($this->pendingTask);
 				if ($shift !== null) {
@@ -76,9 +71,6 @@ class ExecutorPool implements AsyncRuntime {
 					break;
 				}
 			}
-		}
-		foreach ($this->workers as $worker) {
-			$worker->autoCollect();
 		}
 	}
 }

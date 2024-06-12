@@ -22,13 +22,7 @@ class AsyncLoader extends PluginBase {
 		}
 
 		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
-		$lp = new SnoozeAwareEventLoop($this->getServer()->getTickSleeper());
-		GlobalAsyncRuntime::setLoop($lp);
-		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(function() use ($lp) {
-			if ($lp->busy()) {
-				$lp->wakeupSleeper();
-			}
-		}), 1);
+		$this->classLoop();
 	}
 
 	private function classLoop() : void {

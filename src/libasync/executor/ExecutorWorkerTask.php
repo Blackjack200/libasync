@@ -51,9 +51,7 @@ class ExecutorWorkerTask extends Runnable {
 			$this->setError($err);
 		} finally {
 			$this->finished = true;
-			ExecutorWorker::getNotifier()->wakeupSleeper();
 		}
-		gc_collect_cycles();
 	}
 
 	public function onCompletion() : void {
