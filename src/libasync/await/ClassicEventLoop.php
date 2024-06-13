@@ -18,7 +18,7 @@ class ClassicEventLoop implements EventLoop {
 		$start = hrtime(true);
 		foreach ($pending as $await) {
 			$now = hrtime(true) - $start;
-			if ($now > $d) {
+			if ($now >= $d) {
 				break;
 			}
 			$await();

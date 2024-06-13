@@ -49,6 +49,7 @@ class Coroutine {
 			try {
 				if (!$gen->valid()) {
 					$timings->stopTiming();
+					$break();
 					return;
 				}
 				$d = $gen->current();
