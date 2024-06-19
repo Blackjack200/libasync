@@ -8,9 +8,9 @@ use libasync\exception\ExecutionException;
 use libasync\global\GlobalAsyncRuntime;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
+use pocketmine\utils\TextFormat;
 use pocketmine\utils\Utils;
 use prokits\utils\StringFormat;
-use prokits\utils\StringUtils;
 use Throwable;
 use const bootstrap\PRODUCTION;
 
@@ -84,10 +84,10 @@ class AwaitResult {
 			}
 			try {
 				if ($sender instanceof Player && $sender->isOnline()) {
-					if (class_exists(StringUtils::class)) {
-						$sender->sendMessage(StringFormat::level(StringFormat::EMERGENCY)->response(false, 'async error encountered'));
+					if (class_exists(StringFormat::class)) {
+						$sender->sendMessage(StringFormat::error('async error encountered'));
 					} else {
-						$sender->sendMessage('async error encountered');
+						$sender->sendMessage(TextFormat::DARK_RED . 'async error encountered');
 					}
 				}
 			} catch (Throwable $thr) {
