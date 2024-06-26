@@ -3,10 +3,8 @@
 namespace libasync\pool;
 
 use Closure;
-use Generator;
-use libasync\await\Await;
-use libasync\await\AwaitResult;
 use libasync\utils\ResourceRef;
+use pocketmine\utils\Utils;
 
 /**
  * @template T
@@ -27,38 +25,26 @@ class AsyncResourcePool implements ResourcePoolInterface {
 	protected int $capacity;
 	/** @var T[] */
 	private array $resources = [];
-	private int $queued = 0;
+	/** @var \SplDoublyLinkedList<T> */
+	private \SplDoublyLinkedList $list;
 
 	public function setCapacity(int $capacity) : void { $this->capacity = $capacity; }
 
-	public function prepare(int $count) : AwaitResult {
-		$this->queued += $count;
-		return Await::do(function() use ($count) {
-			for ($i = 0; $i < $count; $i++) {
-				if (count($this->resources) + 1 > $this->capacity) {
-					break;
-				}
-				$g = ($this->prepareFunc)();
-				if ($g instanceof Generator) {
-					$g = yield from $g;
-				}
-				$this->resources[] = $g;
-				$this->queued--;
-				yield;
-			}
-		});
+	public function prepare(int $count) : void {
+		$c = count($this->resources);
+		$max = min($c + $count, $this->capacity);
+		for ($i = $c; $i < $max; $i++) {
+			$this->resources[] = ($this->prepareFunc)();
+		}
 	}
 
 	public function select() : ?ResourceRef {
-		$resourceCount = $this->queued + count($this->resources);
+		$resourceCount = count($this->resources);
 		if ($resourceCount === 0) {
-			$this->prepare($this->capacity)->logError();
-			return null;
-		}
-		if (count($this->resources) === 0) {
-			return null;
+			$this->prepare($this->capacity);
 		}
 		$res = array_pop($this->resources);
+		Utils::assumeNotFalse($res !== null);
 		return $this->packRes($res);
 	}
 
@@ -66,6 +52,7 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		foreach ($this->resources as $res) {
 			($this->freeFunc)($res, true);
 		}
+		$this->resources = [];
 	}
 
 	/**
@@ -75,7 +62,10 @@ class AsyncResourcePool implements ResourcePoolInterface {
 		return new ResourceRef(
 			res: $res,
 			recyclable: true,
-			freeFunc: $this->freeFunc,
+			freeFunc: function($res) : void {
+				($this->freeFunc)($res);
+				$this->prepare(1);
+			},
 			recycleFunc: function($res) : bool {
 				$recycled = false;
 				$realPush = function($res) use (&$recycled) {
