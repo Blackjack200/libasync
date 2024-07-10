@@ -2,8 +2,8 @@
 
 namespace libasync;
 
+use libasync\await\Await;
 use libasync\await\ClassicEventLoop;
-use libasync\await\SnoozeAwareEventLoop;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
 use pocketmine\plugin\PluginBase;
@@ -22,6 +22,10 @@ class AsyncLoader extends PluginBase {
 		}
 
 		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
+
+		//trigger autoloader to load Await class
+		Await::class;
+
 		$this->classLoop();
 	}
 
