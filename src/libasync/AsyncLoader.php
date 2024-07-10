@@ -2,7 +2,6 @@
 
 namespace libasync;
 
-use libasync\await\Await;
 use libasync\await\ClassicEventLoop;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
@@ -21,15 +20,16 @@ class AsyncLoader extends PluginBase {
 			define('bootstrap\PRODUCTION', false);
 		}
 
+		$autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+		if (!file_exists($autoload)) {
+			$this->getLogger()->critical("Composer autoloader not found at " . $autoload);
+			$this->getServer()->getPluginManager()->disablePlugin($this);
+			return;
+		}
+		require_once $autoload;
+		require_once __DIR__ . '/functions.php';
+
 		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
-
-		//trigger autoloader to load Await class
-		Await::class;
-
-		$this->classLoop();
-	}
-
-	private function classLoop() : void {
 		$lp = new ClassicEventLoop();
 		GlobalAsyncRuntime::setLoop($lp);
 		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);

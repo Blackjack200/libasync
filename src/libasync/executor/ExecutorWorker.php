@@ -58,14 +58,17 @@ class ExecutorWorker extends Worker {
 	public function quit() : void {
 		$this->isKilled = true;
 
+		var_dump("WDET");
 		while ($this->getStacked() > 0 && !$this->isShutdown()) {
 			$this->synchronized(function() : void {
 				$this->autoCollect();
+				var_dump("WT");
 			});
 		}
 		$this->notify();
 		$this->shutdown();
 
+		var_dump("IDFK");
 		ThreadManager::getInstance()->remove($this);
 	}
 }

@@ -100,17 +100,3 @@ final class Await {
 		}
 	}
 }
-
-function async(Closure|Generator $block, ?EventLoop $loop = null) : AwaitResult {
-	return Await::do($block, $loop);
-}
-
-/**
- * @template T
- * @param Closure():T $do
- * @return Generator<void,AwaitSignal|mixed,void,T>|T
- * @throws ExecutionException
- */
-function thread(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
-	return Await::threadify($do, $runtime, $env);
-}
