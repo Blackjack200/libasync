@@ -29,9 +29,9 @@ class AsyncLoader extends PluginBase {
 		require_once $autoload;
 		require_once __DIR__ . '/functions.php';
 
-		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
 		$lp = new ClassicEventLoop();
 		GlobalAsyncRuntime::setLoop($lp);
 		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);
+		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
 	}
 }
