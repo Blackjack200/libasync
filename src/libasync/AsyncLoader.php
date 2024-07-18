@@ -5,11 +5,17 @@ namespace libasync;
 use libasync\await\ClassicEventLoop;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
+use libasync\utils\ThreadSafePrefixedLogger;
 use pocketmine\plugin\PluginBase;
+use pocketmine\scheduler\AsyncPool;
 use pocketmine\scheduler\ClosureTask;
+use pocketmine\scheduler\GarbageCollectionTask;
+use pocketmine\Server;
 
 class AsyncLoader extends PluginBase {
 	private static self $instance;
+	protected AsyncPool $pool;
+	protected AsyncPoolRuntime $poolRuntime;
 
 	public static function getInstance() : self { return self::$instance; }
 
@@ -31,7 +37,27 @@ class AsyncLoader extends PluginBase {
 
 		$lp = new ClassicEventLoop();
 		GlobalAsyncRuntime::setLoop($lp);
-		$this->getScheduler()->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);
-		GlobalAsyncRuntime::setRuntime(new AsyncPoolRuntime($this->getServer()->getAsyncPool()));
+		$scheduler = $this->getScheduler();
+		$scheduler->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);
+
+		$this->pool = new AsyncPool(8, 1024, Server::getInstance()->getLoader(), new ThreadSafePrefixedLogger(Server::getInstance()->getLogger(), "libasync"), Server::getInstance()->getTickSleeper());
+		$this->poolRuntime = new AsyncPoolRuntime($this->pool);
+		GlobalAsyncRuntime::setRuntime($this->poolRuntime);
+
+		$scheduler->scheduleRepeatingTask(new ClosureTask(function() {
+			$pool = $this->pool;
+			if (($w = $pool->shutdownUnusedWorkers()) > 0) {
+				$this->getLogger()->debug("Shut down $w idle async pool workers");
+			}
+			foreach ($pool->getRunningWorkers() as $i) {
+				$pool->submitTaskToWorker(new GarbageCollectionTask(), $i);
+			}
+		}), 20 * 60 * 3);
 	}
+
+	protected function onDisable() : void {
+		$this->pool->shutdown();
+	}
+
+	public function getPoolRuntime() : AsyncPoolRuntime { return $this->poolRuntime; }
 }

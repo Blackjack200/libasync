@@ -21,4 +21,6 @@ readonly class AsyncPoolRuntime implements AsyncRuntime {
 		$this->pool->submitTask($task);
 		return $rec;
 	}
+
+	public function getPool() : AsyncPool { return $this->pool; }
 }
