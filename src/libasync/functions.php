@@ -7,6 +7,7 @@ namespace libasync {
 	use libasync\await\Await;
 	use libasync\await\AwaitResult;
 	use libasync\await\AwaitSignal;
+	use libasync\await\Coroutine;
 	use libasync\await\EventLoop;
 	use libasync\exception\ExecutionException;
 	use libasync\runtime\AsyncExecutionEnvironment;
@@ -24,5 +25,19 @@ namespace libasync {
 	 */
 	function thread(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
 		return Await::threadify($do, $runtime, $env);
+	}
+
+	function trap(Closure $c) : void {
+		if (Coroutine::$RUNNING === null) {
+			throw new \RuntimeException("no coroutine running in this context");
+		}
+		Coroutine::$RUNNING->addTrap($c);
+	}
+
+	function timeout(float $second) : void {
+		if (Coroutine::$RUNNING === null) {
+			throw new \RuntimeException("no coroutine running in this context");
+		}
+		Coroutine::$RUNNING->timeout = $second;
 	}
 }

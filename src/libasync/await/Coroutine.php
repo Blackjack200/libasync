@@ -7,6 +7,7 @@ use Generator;
 use libasync\AsyncTimings;
 use libasync\exception\ExecutionException;
 use libasync\exception\ExecutionExceptionWrapper;
+use libasync\exception\TimeoutException;
 use pocketmine\Server;
 use pocketmine\thread\ThreadCrashInfoFrame;
 use pocketmine\timings\TimingsHandler;
@@ -17,15 +18,21 @@ class Coroutine {
 	/** @var string[] */
 	private array $callTrace;
 	private string $name;
+	/** @var Closure():bool[] */
+	private array $trap = [];
+
+	public static ?self $RUNNING = null;
+	private float $startTime = PHP_FLOAT_MAX;
+	public float $timeout = PHP_FLOAT_MAX;
 
 	public function __construct(
 		private readonly Generator $generator,
-		private readonly Closure   $errorHandler
+		private readonly ?Closure $errorHandler
 	) {
 		//skip __construct frame
-		$this->callTrace = PMMPUtils::printableCurrentTrace(1);
+		$this->callTrace = PMMPUtils::printableCurrentTrace(3);
 		if (TimingsHandler::isEnabled()) {
-			$trace = debug_backtrace();
+			$trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
 			if (isset($trace[3])) {
 				$caller = $trace[3];
 				$this->name = Filesystem::cleanPath($caller['file']) . '#L' . $caller['line'];
@@ -39,44 +46,30 @@ class Coroutine {
 
 	public function getName() : string { return $this->name; }
 
+	public function addTrap(Closure $trap) : void { $this->trap[] = $trap; }
+
 	public function register(EventLoop $loop) : void {
 		$timings = AsyncTimings::getByName($this->name);
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
+		$this->startTime = microtime(true);
 		$loop->add(function($break) use ($resumeTimings, $timings) : void {
-			$gen = $this->generator;
-			//var_dump($this->getName());
-			$timings->startTiming();
 			try {
-				if (!$gen->valid()) {
-					$timings->stopTiming();
+				self::$RUNNING = $this;
+				$timings->startTiming();
+
+				if ($this->runInternal($timings, $resumeTimings)) {
 					$break();
 					return;
 				}
-				$d = $gen->current();
-				switch ($d) {
-					case AwaitSignal::SIG_WAIT:
-						break;
-					case AwaitSignal::SIG_EXCEPTION:
-						$gen->next();
-						[$callTrace, $exp] = $gen->current();
-						if ($exp !== null) {
-							$gen->throw(new ExecutionException($exp, $callTrace));
-						}
-						break;
-					case AwaitSignal::SIG_FINISH:
-					case AwaitSignal::SIG_INTERRUPT:
-						$break();
-						break;
-				}
-				$resumeTimings->time($gen->next(...));
 			} catch (\Throwable $thr) {
 				$break();
 				if ($this->errorHandler !== null) {
-					($this->errorHandler)(new ExecutionException(ExecutionExceptionWrapper::wrap($thr), $this->callTrace));
+					($this->errorHandler)($thr);
 				} else {
 					self::crash($thr, $this->callTrace);
 				}
 			} finally {
+				self::$RUNNING = null;
 				$timings->stopTiming();
 			}
 		});
@@ -106,5 +99,59 @@ class Coroutine {
 			'thread' => 'Coroutine',
 		];
 		Server::getInstance()->crashDump();
+	}
+
+	public function getGenerator() : Generator { return $this->generator; }
+
+	/**
+	 * @return bool should break
+	 */
+	private function runInternal(TimingsHandler $timings, TimingsHandler $resumeTimings) : bool {
+		$gen = $this->generator;
+		if (($elapsed = microtime(true) - $this->startTime) >= $this->timeout) {
+			$timeout = new TimeoutException("Coroutine timed out, elapsed=$elapsed, timeout=$this->timeout");
+			$gen->throw(new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace));
+			return true;
+		}
+		if (!$gen->valid() || (function() {
+				for ($i = count($this->trap) - 1; $i > 0; $i--) {
+					if ($this->trap[$i]()) {
+						return true;
+					}
+				}
+				return false;
+			})()
+		) {
+			$timings->stopTiming();
+			return true;
+		}
+		$d = $gen->current();
+		switch ($d) {
+			case AwaitSignal::SIG_WAIT:
+				break;
+			case AwaitSignal::SIG_EXCEPTION:
+				$gen->next();
+				[$callTrace, $exp] = $gen->current();
+				if ($exp !== null) {
+					$gen->throw(new ExecutionException($exp, $callTrace));
+				}
+				break;
+			case AwaitSignal::SIG_TRAP:
+				$gen->next();
+				$this->trap[] = $gen->current();
+				break;
+			case AwaitSignal::SIG_FINISH:
+			case AwaitSignal::SIG_INTERRUPT:
+				return true;
+		}
+		try {
+			$resumeTimings->time($gen->next(...));
+		} catch (\Throwable $thr) {
+			if (!($thr instanceof ExecutionException)) {
+				$thr = new ExecutionException(ExecutionExceptionWrapper::wrap($thr), $this->callTrace);
+			}
+			throw $thr;
+		}
+		return false;
 	}
 }

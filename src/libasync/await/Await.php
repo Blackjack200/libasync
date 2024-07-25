@@ -29,6 +29,11 @@ final class Await {
 		yield AwaitSignal::SIG_WAIT;
 	}
 
+	public static function trap(Closure $trap) : Generator {
+		yield AwaitSignal::SIG_TRAP;
+		yield $trap;
+	}
+
 	/** @return Generator<void,AwaitSignal,void,void> */
 	public static function delay(int $sec) : Generator {
 		yield from self::udelay($sec * 1000);

@@ -68,7 +68,7 @@ final class ExecutionExceptionWrapper {
 		$logger ??= \GlobalLogger::get();
 		$logger->critical(self::printPromiseExceptionMessage($this));
 		$logger->critical(
-			"\n--- Stack trace ---\n" .
+			"\n--- Caller Stack trace ---\n" .
 			implode("\n", $callTrace) .
 			"\n--- End of exception information ---"
 		);

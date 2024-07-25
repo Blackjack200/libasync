@@ -19,7 +19,7 @@ class AwaitResult {
 	private bool $errorHandled = false;
 
 	/**
-	 * @param Closure(Closure $errorHandler):Coroutine $createCoroutine
+	 * @param Closure(?Closure $errorHandler):Coroutine $createCoroutine
 	 * @param Closure(Coroutine $coroutine):void $onCreation
 	 */
 	public function __construct(
@@ -47,16 +47,16 @@ class AwaitResult {
 	}
 
 	/**
-	 * @param Closure(Throwable):void $errorHandler
+	 * @param ?Closure(Throwable):void $errorHandler
 	 */
-	public function error(Closure $errorHandler) : void {
+	public function error(?Closure $errorHandler) : void {
 		$this->errorHandled = true;
 		$coroutine = ($this->createCoroutine)($errorHandler);
 		($this->onCreation)($coroutine);
 	}
 
 	public function panic() : void {
-		$this->error(static fn(Throwable $thr) => throw $thr);
+		$this->error(null);
 	}
 
 	/**
