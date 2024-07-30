@@ -40,7 +40,7 @@ class AsyncLoader extends PluginBase {
 		$scheduler = $this->getScheduler();
 		$scheduler->scheduleRepeatingTask(new ClosureTask(static fn() => $lp->poll(10)), 1);
 
-		$this->pool = new AsyncPool(8, 1024, Server::getInstance()->getLoader(), new ThreadSafePrefixedLogger(Server::getInstance()->getLogger(), "libasync"), Server::getInstance()->getTickSleeper());
+		$this->pool = new AsyncPool(1, 1024, Server::getInstance()->getLoader(), new ThreadSafePrefixedLogger(Server::getInstance()->getLogger(), "libasync"), Server::getInstance()->getTickSleeper());
 		$this->poolRuntime = new AsyncPoolRuntime($this->pool);
 		GlobalAsyncRuntime::setRuntime($this->poolRuntime);
 
