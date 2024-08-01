@@ -12,6 +12,7 @@ namespace libasync {
 	use libasync\exception\ExecutionException;
 	use libasync\runtime\AsyncExecutionEnvironment;
 	use libasync\runtime\AsyncRuntime;
+	use pocketmine\player\Player;
 
 	function async(Closure|Generator $block, ?EventLoop $loop = null) : AwaitResult {
 		return Await::do($block, $loop);
@@ -32,6 +33,10 @@ namespace libasync {
 			throw new \RuntimeException("no coroutine running in this context");
 		}
 		Coroutine::$RUNNING->addTrap($c);
+	}
+
+	function trap_online(Player $player) : void {
+		trap(static fn() => $player->isOnline());
 	}
 
 	function timeout(float $second) : void {
