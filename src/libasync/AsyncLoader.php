@@ -3,6 +3,7 @@
 namespace libasync;
 
 use libasync\await\ClassicEventLoop;
+use libasync\await\Coroutine;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
 use libasync\utils\ThreadSafePrefixedLogger;
@@ -56,6 +57,15 @@ class AsyncLoader extends PluginBase {
 	}
 
 	protected function onDisable() : void {
+		$tck = Server::getInstance()->getTick();
+		$timeout = microtime(true) + 30;
+		while (!empty(Coroutine::$joinedCoroutine)) {
+			$this->getScheduler()->mainThreadHeartbeat($tck++);
+			$this->pool->collectTasks();
+			if (microtime(true) > $timeout) {
+				break;
+			}
+		}
 		$this->pool->shutdown();
 	}
 

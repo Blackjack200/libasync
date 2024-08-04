@@ -15,11 +15,12 @@ use Throwable;
 use const bootstrap\PRODUCTION;
 
 class AwaitResult {
+	protected bool $join = true;
 	private array $stackTrace;
 	private bool $errorHandled = false;
 
 	/**
-	 * @param Closure(?Closure $errorHandler):Coroutine $createCoroutine
+	 * @param Closure(?Closure $errorHandler,bool $joined):Coroutine $createCoroutine
 	 * @param Closure(Coroutine $coroutine):void $onCreation
 	 */
 	public function __construct(
@@ -51,7 +52,7 @@ class AwaitResult {
 	 */
 	public function error(?Closure $errorHandler) : void {
 		$this->errorHandled = true;
-		$coroutine = ($this->createCoroutine)($errorHandler);
+		$coroutine = ($this->createCoroutine)($errorHandler, $this->join);
 		($this->onCreation)($coroutine);
 	}
 
@@ -97,5 +98,15 @@ class AwaitResult {
 				$do($thr);
 			}
 		});
+	}
+
+	public function join() : self {
+		$this->join = true;
+		return $this;
+	}
+
+	public function mayDrop() : self {
+		$this->join = false;
+		return $this;
 	}
 }

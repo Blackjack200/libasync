@@ -25,9 +25,12 @@ class Coroutine {
 	private float $startTime = PHP_FLOAT_MAX;
 	public float $timeout = PHP_FLOAT_MAX;
 
+	public static array $joinedCoroutine = [];
+
 	public function __construct(
 		private readonly Generator $generator,
-		private readonly ?Closure $errorHandler
+		private readonly ?Closure $errorHandler,
+		private readonly bool     $joined
 	) {
 		//skip __construct frame
 		$this->callTrace = PMMPUtils::printableCurrentTrace(3);
@@ -42,6 +45,9 @@ class Coroutine {
 		} else {
 			$this->name = 'UNKNOWN';
 		}
+		if ($this->joined) {
+			self::$joinedCoroutine[spl_object_id($this)] = $this;
+		}
 	}
 
 	public function getName() : string { return $this->name; }
@@ -53,6 +59,10 @@ class Coroutine {
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
 		$this->startTime = microtime(true);
 		$loop->add(function($break) use ($resumeTimings, $timings) : void {
+			$break = function() use ($break) {
+				unset(self::$joinedCoroutine[spl_object_id($this)]);
+				$break();
+			};
 			try {
 				self::$RUNNING = $this;
 				$timings->startTiming();

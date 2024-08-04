@@ -35,6 +35,13 @@ namespace libasync {
 		Coroutine::$RUNNING->addTrap($c);
 	}
 
+	function may_drop() : void {
+		if (Coroutine::$RUNNING === null) {
+			throw new \RuntimeException("no coroutine running in this context");
+		}
+		unset(Coroutine::$joinedCoroutine[spl_object_id(Coroutine::$RUNNING)]);
+	}
+
 	function trap_online(Player $player) : void {
 		trap(static fn() => $player->isOnline());
 	}

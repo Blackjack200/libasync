@@ -12,6 +12,7 @@ use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncRuntime;
 use pocketmine\utils\Utils as PMMPUtils;
 use Throwable;
+use function libasync\may_drop;
 use const bootstrap\PRODUCTION;
 
 final class Await {
@@ -58,6 +59,7 @@ final class Await {
 	public static function tick(Closure $do, int $tick, int $times) : Generator {
 		$c = true;
 		$cancel = static function() use (&$c) { $c = false; };
+		may_drop();
 		while ($times-- > 0 && $c) {
 			yield from self::udelay($tick * (1000 / 20));
 			$do($cancel);
@@ -97,7 +99,7 @@ final class Await {
 				PMMPUtils::validateCallableSignature(new CallbackType(new ReturnType(),), $block);
 			}
 			return new AwaitResult(
-				static fn($errorHandler) => new Coroutine($block instanceof Closure ? self::f2c($block) : $block, $errorHandler),
+				static fn($errorHandler, $joined) => new Coroutine($block instanceof Closure ? self::f2c($block) : $block, $errorHandler, $joined),
 				static fn(Coroutine $coroutine) => $coroutine->register($loop ?? GlobalAsyncRuntime::getLoop())
 			);
 		} catch (Throwable $thr) {
