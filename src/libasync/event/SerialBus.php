@@ -14,10 +14,20 @@ final class SerialBus implements BusInterface {
 	/**
 	 * @param \Closure(T $topic):void $handler
 	 */
-	public function subscribe(Closure $handler) : void {
+	public function subscribe(Closure $handler) : Closure {
+		$combine = [];
+		$id = spl_object_id($handler);
 		foreach (ClosureUtils::parseSubscriber($handler) as $type) {
-			$this->handler[$type][] = $handler;
+			$this->handler[$type][$id] = $handler;
+			$combine[] = function() use ($id, $type) {
+				unset($this->handler[$type][$id]);
+			};
 		}
+		return static function() use ($combine) {
+			foreach ($combine as $x) {
+				$x();
+			}
+		};
 	}
 
 	/**

@@ -9,7 +9,7 @@ interface BusInterface {
 	/**
 	 * @param \Closure(T $value):void $handler
 	 */
-	public function subscribe(\Closure $handler) : void;
+	public function subscribe(\Closure $handler) : \Closure;
 
 	/**
 	 * @param T $value
