@@ -2,19 +2,19 @@
 
 namespace libasync {
 
-	use Closure;
-	use Generator;
-	use libasync\await\Await;
-	use libasync\await\AwaitResult;
-	use libasync\await\AwaitSignal;
-	use libasync\await\Coroutine;
-	use libasync\await\EventLoop;
-	use libasync\exception\ExecutionException;
-	use libasync\runtime\AsyncExecutionEnvironment;
-	use libasync\runtime\AsyncRuntime;
-	use pocketmine\player\Player;
+    use Closure;
+    use Generator;
+    use libasync\await\Await;
+    use libasync\await\AwaitResult;
+    use libasync\await\AwaitSignal;
+    use libasync\await\Coroutine;
+    use libasync\await\EventLoop;
+    use libasync\exception\ExecutionException;
+    use libasync\runtime\AsyncExecutionEnvironment;
+    use libasync\runtime\AsyncRuntime;
+    use pocketmine\player\Player;
 
-	function async(Closure|Generator $block, ?EventLoop $loop = null) : AwaitResult {
+    function async(Closure|Generator $block, ?EventLoop $loop = null) : AwaitResult {
 		return Await::do($block, $loop);
 	}
 

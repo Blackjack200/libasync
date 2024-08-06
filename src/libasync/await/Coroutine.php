@@ -126,10 +126,10 @@ class Coroutine {
 		if (!$gen->valid() || (function() {
 				for ($i = count($this->trap) - 1; $i > 0; $i--) {
 					if ($this->trap[$i]()) {
-						return true;
+						return false;
 					}
 				}
-				return false;
+				return true;
 			})()
 		) {
 			$timings->stopTiming();
