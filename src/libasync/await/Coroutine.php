@@ -20,6 +20,7 @@ class Coroutine {
 	private string $name;
 	/** @var Closure():bool[] */
 	private array $trap = [];
+	private array $defer = [];
 
 	public static ?self $RUNNING = null;
 	private float $startTime = PHP_FLOAT_MAX;
@@ -54,6 +55,10 @@ class Coroutine {
 
 	public function addTrap(Closure $trap) : void { $this->trap[] = $trap; }
 
+	public function addDefer(Closure $defer) : void {
+		$this->defer[] = $defer;
+	}
+
 	public function register(EventLoop $loop) : void {
 		$timings = AsyncTimings::getByName($this->name);
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
@@ -62,6 +67,9 @@ class Coroutine {
 			$break = function() use ($break) {
 				unset(self::$joinedCoroutine[spl_object_id($this)]);
 				$break();
+				foreach ($this->defer as $defer) {
+					$defer();
+				}
 			};
 			try {
 				self::$RUNNING = $this;
@@ -123,14 +131,20 @@ class Coroutine {
 			$gen->throw(new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace));
 			return true;
 		}
-		if (!$gen->valid() || (function() {
-				for ($i = count($this->trap) - 1; $i > 0; $i--) {
-					if ($this->trap[$i]()) {
-						return true;
-					}
+		$trapped = (function() {
+			for ($i = count($this->trap) - 1; $i >= 0; $i--) {
+				if (!$this->trap[$i]()) {
+					return true;
 				}
-				return false;
-			})()
+			}
+			return false;
+		})();
+		if ($trapped) {
+			$timeout = new TimeoutException("Coroutine trapped, elapsed=$elapsed, timeout=$this->timeout");
+			$gen->throw(new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace));
+			return true;
+		}
+		if (!$gen->valid() || $trapped
 		) {
 			$timings->stopTiming();
 			return true;

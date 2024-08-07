@@ -35,6 +35,13 @@ namespace libasync {
 		Coroutine::$RUNNING->addTrap($c);
 	}
 
+	function defer(Closure $c) : void {
+		if (Coroutine::$RUNNING === null) {
+			throw new \RuntimeException("no coroutine running in this context");
+		}
+		Coroutine::$RUNNING->addDefer($c);
+	}
+
 	function may_drop() : void {
 		if (Coroutine::$RUNNING === null) {
 			throw new \RuntimeException("no coroutine running in this context");
