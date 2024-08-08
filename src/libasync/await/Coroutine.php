@@ -131,20 +131,14 @@ class Coroutine {
 			$gen->throw(new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace));
 			return true;
 		}
-		$trapped = (function() {
-			for ($i = count($this->trap) - 1; $i >= 0; $i--) {
-				if (!$this->trap[$i]()) {
-					return true;
-				}
-			}
-			return false;
-		})();
-		if ($trapped) {
-			$timeout = new TimeoutException("Coroutine trapped, elapsed=$elapsed, timeout=$this->timeout");
-			$gen->throw(new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace));
-			return true;
-		}
-		if (!$gen->valid() || $trapped
+        if (!$gen->valid() || (function () {
+                for ($i = count($this->trap) - 1; $i >= 0; $i--) {
+                    if (!$this->trap[$i]()) {
+                        return true;
+                    }
+                }
+                return false;
+            })()
 		) {
 			$timings->stopTiming();
 			return true;
