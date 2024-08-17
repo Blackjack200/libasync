@@ -13,8 +13,5 @@
             "name": "Blackjack200",
             "email": "lx826444126@gmail.com"
         }
-    ],
-    "require": {
-        "revolt/event-loop": "^1.0"
-    }
+    ]
 }
