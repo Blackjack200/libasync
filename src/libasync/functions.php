@@ -59,4 +59,11 @@ namespace libasync {
 		}
 		Coroutine::$RUNNING->timeout = $second;
 	}
+
+	function delay(Closure $func, int $tick = 0) : AwaitResult {
+		return async(function() use ($func, $tick) {
+			yield from Await::udelay($tick * 50);
+			yield from Await::f2c($func);
+		});
+	}
 }
