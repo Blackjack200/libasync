@@ -42,6 +42,13 @@ namespace libasync {
 		Coroutine::$RUNNING->addDefer($c);
 	}
 
+	function joined() : void {
+		if (Coroutine::$RUNNING === null) {
+			throw new \RuntimeException("no coroutine running in this context");
+		}
+		Coroutine::$joinedCoroutine[spl_object_id(Coroutine::$RUNNING)] = Coroutine::$RUNNING;
+	}
+
 	function may_drop() : void {
 		if (Coroutine::$RUNNING === null) {
 			throw new \RuntimeException("no coroutine running in this context");
