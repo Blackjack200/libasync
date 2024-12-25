@@ -1,57 +1,55 @@
 <?php
+declare(strict_types=1);
 
 namespace libasync\await;
 
 use Closure;
+use SplQueue;
 
 class ClassicEventLoop implements EventLoop {
-	/** @var array<int, Closure(\Closure $unregister):void> */
-	private array $poll = [];
-	/** @var array<int, Closure(\Closure $unregister):void> */
-	private array $slept = [];
-	/** @var int[] */
-	private array $awake = [];
+	/** @var array<int, EventLoopTask> */
+	private array $polling = [];
+	/** @var array<int, EventLoopTask> */
+	private array $waiting = [];
+	/** @var SplQueue<int> */
+	private SplQueue $wakeupQueue;
+
+	public function __construct() {
+		$this->wakeupQueue = new SplQueue();
+	}
 
 	public function poll(int $microsecond = PHP_INT_MAX) : void {
-		$pending = [];
-		foreach ($this->poll as $k => $await) {
-			$break = function() use ($k) : void { unset($this->poll[$k]); };
-			$changeToWakeup = function() use ($k) : Closure {
-				$this->slept[$k] = $this->poll[$k];
-				unset($this->poll[$k]);
-				return function() use ($k) {
-					$this->awake[$k] = 1;
-				};
-			};
+		$deadline = hrtime(true) + ($microsecond * 1000000);
 
-			$pending[] = static fn() => $await($break, $changeToWakeup);
-		}
-
-		foreach ($this->awake as $k => $_) {
-			$this->poll[$k] = $this->slept[$k];
-			unset($this->slept[$k]);
-		}
-		$this->awake = [];
-
-		$d = $microsecond * 1000 * 1000;
-		$start = hrtime(true);
-		foreach ($pending as $await) {
-			$now = hrtime(true) - $start;
-			if ($now >= $d) {
+		foreach ($this->polling as $task) {
+			if (hrtime(true) >= $deadline) {
 				break;
 			}
-			$await();
+			$task->execute();
+		}
+
+		while (!$this->wakeupQueue->isEmpty()) {
+			$id = $this->wakeupQueue->dequeue();
+			$this->polling[$id] = $this->waiting[$id];
+			unset($this->waiting[$id]);
 		}
 	}
 
-	/**
-	 * @param Closure(Closure $break):void $c
-	 */
-	public function add(Closure $c) : Closure {
+	public function add(Closure $c, int $timeoutMicrosecond = PHP_INT_MAX, ?Closure $onTimeout = null) : EventLoopTask {
 		$id = spl_object_id($c);
-		$this->poll[$id] = $c;
-		return function() use ($id) {
-			unset($this->poll[$id], $this->slept[$id]);
-		};
+		$task = new EventLoopTask(
+			$c,
+			function() use ($id) {
+				unset($this->polling[$id], $this->waiting[$id]);
+			},
+			function() use ($id) : Closure {
+				$this->waiting[$id] = $this->polling[$id];
+				unset($this->polling[$id]);
+				return fn() => $this->wakeupQueue->enqueue($id);
+			},
+			$timeoutMicrosecond, $onTimeout
+		);
+		$this->polling[$id] = $task;
+		return $task;
 	}
 }

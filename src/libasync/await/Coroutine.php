@@ -15,18 +15,19 @@ use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
 
 class Coroutine {
+	public static ?self $RUNNING = null;
+	/** @var array<int,self> */
+	public static array $joinedCoroutine = [];
+
+	private const SKIP_FRAMES = 3;
 	/** @var string[] */
 	private array $callTrace;
 	private string $name;
-	/** @var Closure():bool[] */
+	/** @var (Closure():bool)[] */
 	private array $trap = [];
+	/** @var (Closure():void)[] */
 	private array $defer = [];
-
-	public static ?self $RUNNING = null;
-	private float $startTime = PHP_FLOAT_MAX;
-	public float $timeout = PHP_FLOAT_MAX;
-
-	public static array $joinedCoroutine = [];
+	private EventLoopTask $task;
 
 	public function __construct(
 		private readonly Generator $generator,
@@ -34,17 +35,17 @@ class Coroutine {
 		private readonly bool     $joined
 	) {
 		//skip __construct frame
-		$this->callTrace = PMMPUtils::printableCurrentTrace(3);
+		$this->callTrace = PMMPUtils::printableCurrentTrace(self::SKIP_FRAMES);
 		if (TimingsHandler::isEnabled()) {
 			$trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-			if (isset($trace[3])) {
-				$caller = $trace[3];
+			if (isset($trace[self::SKIP_FRAMES])) {
+				$caller = $trace[self::SKIP_FRAMES];
 				$this->name = Filesystem::cleanPath($caller['file']) . '#L' . $caller['line'];
 			} else {
-				$this->name = 'UNKNOWN';
+				$this->name = 'Unknown';
 			}
 		} else {
-			$this->name = 'UNKNOWN';
+			$this->name = 'Unknown';
 		}
 		if ($this->joined) {
 			self::$joinedCoroutine[spl_object_id($this)] = $this;
@@ -53,8 +54,14 @@ class Coroutine {
 
 	public function getName() : string { return $this->name; }
 
+	/**
+	 * @param Closure():bool $trap
+	 */
 	public function addTrap(Closure $trap) : void { $this->trap[] = $trap; }
 
+	/**
+	 * @param Closure():void $defer
+	 */
 	public function addDefer(Closure $defer) : void {
 		$this->defer[] = $defer;
 	}
@@ -62,8 +69,7 @@ class Coroutine {
 	public function register(EventLoop $loop) : void {
 		$timings = AsyncTimings::getByName($this->name);
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
-		$this->startTime = microtime(true);
-		$loop->add(function($break, $changeToWakeupMode) use ($resumeTimings, $timings) : void {
+		$this->task = $loop->add(function($break, $changeToWakeupMode) use ($resumeTimings, $timings) : void {
 			$break = function() use ($break) {
 				unset(self::$joinedCoroutine[spl_object_id($this)]);
 				$break();
@@ -91,6 +97,7 @@ class Coroutine {
 				$timings->stopTiming();
 			}
 		});
+		$this->task->setOnTimeout($this->onTimeout(...));
 	}
 
 	private static function crash(\Throwable $thr, array $callTrace) : void {
@@ -126,11 +133,6 @@ class Coroutine {
 	 */
 	private function runInternal(TimingsHandler $timings, TimingsHandler $resumeTimings, Closure $changeToWakeupMode) : bool {
 		$gen = $this->generator;
-		if (($elapsed = microtime(true) - $this->startTime) >= $this->timeout) {
-			$timeout = new TimeoutException("Coroutine timed out, elapsed=$elapsed, timeout=$this->timeout");
-			$gen->throw(new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace));
-			return true;
-		}
         if (!$gen->valid() || (function () {
                 for ($i = count($this->trap) - 1; $i >= 0; $i--) {
                     if (!$this->trap[$i]()) {
@@ -176,5 +178,14 @@ class Coroutine {
 			throw $thr;
 		}
 		return false;
+	}
+
+	public function getTask() : EventLoopTask { return $this->task; }
+
+	private function onTimeout(float $exceed) : void {
+		unset(self::$joinedCoroutine[spl_object_id($this)]);
+		$timeout = new TimeoutException("Coroutine timed out, exceed=$exceed");
+		$exception = new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace);
+		$this->generator->throw($exception);
 	}
 }
