@@ -6,6 +6,8 @@ use libasync\await\ClassicEventLoop;
 use libasync\await\Coroutine;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
+use libasync\runtime\AsyncRuntime;
+use libasync\runtime\ProcessAsyncRuntime;
 use libasync\utils\ThreadSafePrefixedLogger;
 use pocketmine\plugin\PluginBase;
 use pocketmine\scheduler\AsyncPool;
@@ -16,7 +18,7 @@ use pocketmine\Server;
 class AsyncLoader extends PluginBase {
 	private static self $instance;
 	protected AsyncPool $pool;
-	protected AsyncPoolRuntime $poolRuntime;
+	protected AsyncRuntime $poolRuntime;
 
 	public static function getInstance() : self { return self::$instance; }
 
@@ -43,6 +45,7 @@ class AsyncLoader extends PluginBase {
 
 		$this->pool = new AsyncPool(1, 1024, Server::getInstance()->getLoader(), new ThreadSafePrefixedLogger(Server::getInstance()->getLogger(), "libasync"), Server::getInstance()->getTickSleeper());
 		$this->poolRuntime = new AsyncPoolRuntime($this->pool);
+		//$this->poolRuntime = new ProcessAsyncRuntime();
 		GlobalAsyncRuntime::setRuntime($this->poolRuntime);
 
 		$scheduler->scheduleRepeatingTask(new ClosureTask(function() {
@@ -69,5 +72,5 @@ class AsyncLoader extends PluginBase {
 		$this->pool->shutdown();
 	}
 
-	public function getPoolRuntime() : AsyncPoolRuntime { return $this->poolRuntime; }
+	public function getPoolRuntime() : AsyncRuntime { return $this->poolRuntime; }
 }

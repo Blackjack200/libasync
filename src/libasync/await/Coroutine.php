@@ -111,7 +111,7 @@ class Coroutine {
 			AwaitSignal::SIG_EXCEPTION => $this->handleExceptionSignal($gen),
 			AwaitSignal::SIG_TRAP => $this->handleTrapSignal($gen),
 			AwaitSignal::SIG_FINISH, AwaitSignal::SIG_INTERRUPT => true,
-			default => throw new RuntimeException("Unsupported signal: $signal")
+			default => throw new RuntimeException("Unsupported signal: " . var_export($signal, true))
 		};
 
 		$resumeTimings->time(fn() => $gen->next());

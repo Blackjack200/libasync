@@ -11,8 +11,8 @@ use const bootstrap\PRODUCTION;
 
 class AsyncExecutionEnvironment extends ThreadSafe {
 	public function __construct(
-		private readonly Closure $argsCtor,
-		private readonly Closure $argsDtor,
+		public readonly Closure $argsCtor,
+		public readonly Closure $argsDtor,
 	) {
 		if (!PRODUCTION) {
 			Utils::validateCallableSignature(static fn() : array => [], $this->argsCtor);

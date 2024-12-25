@@ -19,6 +19,26 @@ final class Await {
 	private function __construct() { }
 
 	/**
+	 * @param resource $stream
+	 * @return Generator<void,mixed,void,string>
+	 */
+	public static function stream($stream) : Generator {
+		$buffer = '';
+		while (!feof($stream)) {
+			$read = fread($stream, 1 << 16);
+			if ($read !== '') {
+				$buffer .= $read;
+				yield self::suspend;
+			} else {
+				yield from self::udelay(200);
+			}
+		}
+		if (is_resource($stream)) {
+			fclose($stream);
+		}
+		return $buffer;
+	}
+	/**
 	 * Suspends the current execution and yields control back to the event loop.
 	 */
 	public const suspend = AwaitSignal::SIG_WAIT;
