@@ -1,9 +1,11 @@
 <?php
+declare(strict_types=1);
 
 namespace libasync\await;
 
 use Closure;
 use Generator;
+use GlobalLogger;
 use libasync\AsyncTimings;
 use libasync\exception\ExecutionException;
 use libasync\exception\ExecutionExceptionWrapper;
@@ -13,20 +15,20 @@ use pocketmine\thread\ThreadCrashInfoFrame;
 use pocketmine\timings\TimingsHandler;
 use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
+use RuntimeException;
+use Throwable;
 
 class Coroutine {
+	private const SKIP_FRAMES = 3;
 	public static ?self $RUNNING = null;
 	/** @var array<int,self> */
 	public static array $joinedCoroutine = [];
-
-	private const SKIP_FRAMES = 3;
-	/** @var string[] */
-	private array $callTrace;
-	private string $name;
+	private readonly array $callTrace;
+	private readonly string $name;
 	/** @var (Closure():bool)[] */
-	private array $trap = [];
+	private array $trapHandlers = [];
 	/** @var (Closure():void)[] */
-	private array $defer = [];
+	private array $deferHandlers = [];
 	private EventLoopTask $task;
 
 	public function __construct(
@@ -34,22 +36,27 @@ class Coroutine {
 		private readonly ?Closure $errorHandler,
 		private readonly bool     $joined
 	) {
-		//skip __construct frame
 		$this->callTrace = PMMPUtils::printableCurrentTrace(self::SKIP_FRAMES);
-		if (TimingsHandler::isEnabled()) {
-			$trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-			if (isset($trace[self::SKIP_FRAMES])) {
-				$caller = $trace[self::SKIP_FRAMES];
-				$this->name = Filesystem::cleanPath($caller['file']) . '#L' . $caller['line'];
-			} else {
-				$this->name = 'Unknown';
-			}
-		} else {
-			$this->name = 'Unknown';
-		}
+		$this->name = $this->determineCallerName();
+
 		if ($this->joined) {
 			self::$joinedCoroutine[spl_object_id($this)] = $this;
 		}
+	}
+
+	private function determineCallerName() : string {
+		if (!TimingsHandler::isEnabled()) {
+			return 'Unknown';
+		}
+
+		$trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, self::SKIP_FRAMES + 1);
+		$caller = $trace[self::SKIP_FRAMES] ?? null;
+
+		if ($caller === null) {
+			return 'Unknown';
+		}
+
+		return Filesystem::cleanPath($caller['file']) . '#L' . $caller['line'];
 	}
 
 	public function getName() : string { return $this->name; }
@@ -57,59 +64,115 @@ class Coroutine {
 	/**
 	 * @param Closure():bool $trap
 	 */
-	public function addTrap(Closure $trap) : void { $this->trap[] = $trap; }
+	public function addTrap(Closure $trap) : void { $this->trapHandlers[] = $trap; }
 
 	/**
 	 * @param Closure():void $defer
 	 */
-	public function addDefer(Closure $defer) : void {
-		$this->defer[] = $defer;
-	}
+	public function addDefer(Closure $defer) : void { $this->deferHandlers[] = $defer; }
 
 	public function register(EventLoop $loop) : void {
 		$timings = AsyncTimings::getByName($this->name);
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
-		$this->task = $loop->add(function($break, $changeToWakeupMode) use ($resumeTimings, $timings) : void {
-			$break = function() use ($break) {
-				unset(self::$joinedCoroutine[spl_object_id($this)]);
-				$break();
-				foreach ($this->defer as $defer) {
-					$defer();
-				}
-			};
+
+		$this->task = $loop->add(function(Closure $break, Closure $wakeupMode) use ($timings, $resumeTimings) : void {
 			try {
 				self::$RUNNING = $this;
 				$timings->startTiming();
 
-				if ($this->runInternal($timings, $resumeTimings, $changeToWakeupMode)) {
-					$break();
-					return;
+				if ($this->executeInternal($timings, $resumeTimings, $wakeupMode)) {
+					$this->terminate($break);
 				}
-			} catch (\Throwable $thr) {
-				$break();
-				if ($this->errorHandler !== null) {
-					($this->errorHandler)($thr);
-				} else {
-					self::crash($thr, $this->callTrace);
-				}
+			} catch (Throwable $thr) {
+				$this->terminate($break);
+				$this->handleException($thr);
 			} finally {
 				self::$RUNNING = null;
 				$timings->stopTiming();
 			}
 		});
-		$this->task->setOnTimeout($this->onTimeout(...));
+
+		$this->task->setOnTimeout($this->handleTimeout(...));
 	}
 
-	private static function crash(\Throwable $thr, array $callTrace) : void {
-		$x = [];
-		foreach ($callTrace as $xb => $ttr) {
-			$x[$xb] = new ThreadCrashInfoFrame($ttr, 'unknown', 0);
+	private function executeInternal(TimingsHandler $timings, TimingsHandler $resumeTimings, Closure $wakeupMode) : bool {
+		$gen = $this->generator;
+
+		if (!$gen->valid() || !$this->processTraps()) {
+			$timings->stopTiming();
+			return true;
 		}
+
+		$signal = $gen->current();
+
+		match ($signal) {
+			AwaitSignal::SIG_NOTIFIED => $this->handleNotifiedSignal($gen, $wakeupMode),
+			AwaitSignal::SIG_WAIT => null,
+			AwaitSignal::SIG_EXCEPTION => $this->handleExceptionSignal($gen),
+			AwaitSignal::SIG_TRAP => $this->handleTrapSignal($gen),
+			AwaitSignal::SIG_FINISH, AwaitSignal::SIG_INTERRUPT => true,
+			default => throw new RuntimeException("Unsupported signal: $signal")
+		};
+
+		$resumeTimings->time(fn() => $gen->next());
+		return false;
+	}
+
+	private function processTraps() : bool {
+		foreach (array_reverse($this->trapHandlers) as $trap) {
+			if (!$trap()) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private function handleNotifiedSignal(Generator $gen, Closure $wakeupMode) : void {
+		$gen->next();
+		$notifier = $gen->current();
+		$notifier($wakeupMode());
+	}
+
+	private function handleExceptionSignal(Generator $gen) : void {
+		$gen->next();
+		[$callTrace, $exception] = $gen->current();
+
+		if ($exception !== null) {
+			$gen->throw(new ExecutionException($exception, $callTrace));
+		}
+	}
+
+	private function handleTrapSignal(Generator $gen) : void {
+		$gen->next();
+		$this->trapHandlers[] = $gen->current();
+	}
+
+	private function terminate(Closure $break) : void {
+		unset(self::$joinedCoroutine[spl_object_id($this)]);
+
+		foreach ($this->deferHandlers as $defer) {
+			$defer();
+		}
+
+		$break();
+	}
+
+	private function handleException(Throwable $thr) : void {
+		if ($this->errorHandler !== null) {
+			($this->errorHandler)($thr);
+		} else {
+			self::logCrash($thr, $this->callTrace);
+		}
+	}
+
+	private static function logCrash(Throwable $thr, array $callTrace) : void {
+		$x = array_map(static fn($ttr) => new ThreadCrashInfoFrame($ttr, 'unknown', 0), $callTrace);
 		if ($thr instanceof ExecutionException) {
-			$thr->printWithCallTrace(\GlobalLogger::get());
+			$thr->printWithCallTrace(GlobalLogger::get());
 			$wrapper = $thr->getWrapper();
 		} else {
-			\GlobalLogger::get()->logException($thr);
+			GlobalLogger::get()->logException($thr);
 			$wrapper = ExecutionExceptionWrapper::wrap($thr);
 		}
 
@@ -126,66 +189,14 @@ class Coroutine {
 		Server::getInstance()->crashDump();
 	}
 
-	public function getGenerator() : Generator { return $this->generator; }
-
-	/**
-	 * @return bool should break
-	 */
-	private function runInternal(TimingsHandler $timings, TimingsHandler $resumeTimings, Closure $changeToWakeupMode) : bool {
-		$gen = $this->generator;
-        if (!$gen->valid() || (function () {
-                for ($i = count($this->trap) - 1; $i >= 0; $i--) {
-                    if (!$this->trap[$i]()) {
-                        return true;
-                    }
-                }
-                return false;
-            })()
-		) {
-			$timings->stopTiming();
-			return true;
-		}
-		$d = $gen->current();
-		switch ($d) {
-			case AwaitSignal::SIG_NOTIFIED:
-				$gen->next();
-				$setNotifier = $gen->current();
-				$setNotifier($changeToWakeupMode());
-				break;
-			case AwaitSignal::SIG_WAIT:
-				break;
-			case AwaitSignal::SIG_EXCEPTION:
-				$gen->next();
-				[$callTrace, $exp] = $gen->current();
-				if ($exp !== null) {
-					$gen->throw(new ExecutionException($exp, $callTrace));
-				}
-				break;
-			case AwaitSignal::SIG_TRAP:
-				$gen->next();
-				$this->trap[] = $gen->current();
-				break;
-			case AwaitSignal::SIG_FINISH:
-			case AwaitSignal::SIG_INTERRUPT:
-				return true;
-		}
-		try {
-			$resumeTimings->time($gen->next(...));
-		} catch (\Throwable $thr) {
-			if (!($thr instanceof ExecutionException)) {
-				$thr = new ExecutionException(ExecutionExceptionWrapper::wrap($thr), $this->callTrace);
-			}
-			throw $thr;
-		}
-		return false;
-	}
-
 	public function getTask() : EventLoopTask { return $this->task; }
 
-	private function onTimeout(float $exceed) : void {
+	private function handleTimeout(float $exceed) : void {
 		unset(self::$joinedCoroutine[spl_object_id($this)]);
-		$timeout = new TimeoutException("Coroutine timed out, exceed=$exceed");
-		$exception = new ExecutionException(ExecutionExceptionWrapper::wrap($timeout), $this->callTrace);
-		$this->generator->throw($exception);
+
+		$timeoutException = new TimeoutException("Coroutine timed out, exceed=$exceed");
+		$executionException = new ExecutionException(ExecutionExceptionWrapper::wrap($timeoutException), $this->callTrace);
+
+		$this->generator->throw($executionException);
 	}
 }

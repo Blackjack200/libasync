@@ -21,7 +21,7 @@ namespace libasync {
 	/**
 	 * @template T
 	 * @param Closure():T $do
-	 * @return Generator<void,AwaitSignal|mixed,void,T>|T
+	 * @return Generator<void,mixed,void,T>|T
 	 * @throws ExecutionException
 	 */
 	function thread(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
