@@ -63,7 +63,7 @@ class Coroutine {
 		$timings = AsyncTimings::getByName($this->name);
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
 		$this->startTime = microtime(true);
-		$loop->add(function($break) use ($resumeTimings, $timings) : void {
+		$loop->add(function($break, $changeToWakeupMode) use ($resumeTimings, $timings) : void {
 			$break = function() use ($break) {
 				unset(self::$joinedCoroutine[spl_object_id($this)]);
 				$break();
@@ -75,7 +75,7 @@ class Coroutine {
 				self::$RUNNING = $this;
 				$timings->startTiming();
 
-				if ($this->runInternal($timings, $resumeTimings)) {
+				if ($this->runInternal($timings, $resumeTimings, $changeToWakeupMode)) {
 					$break();
 					return;
 				}
@@ -124,7 +124,7 @@ class Coroutine {
 	/**
 	 * @return bool should break
 	 */
-	private function runInternal(TimingsHandler $timings, TimingsHandler $resumeTimings) : bool {
+	private function runInternal(TimingsHandler $timings, TimingsHandler $resumeTimings, Closure $changeToWakeupMode) : bool {
 		$gen = $this->generator;
 		if (($elapsed = microtime(true) - $this->startTime) >= $this->timeout) {
 			$timeout = new TimeoutException("Coroutine timed out, elapsed=$elapsed, timeout=$this->timeout");
@@ -145,6 +145,11 @@ class Coroutine {
 		}
 		$d = $gen->current();
 		switch ($d) {
+			case AwaitSignal::SIG_NOTIFIED:
+				$gen->next();
+				$setNotifier = $gen->current();
+				$setNotifier($changeToWakeupMode());
+				break;
 			case AwaitSignal::SIG_WAIT:
 				break;
 			case AwaitSignal::SIG_EXCEPTION:

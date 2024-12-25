@@ -81,10 +81,8 @@ final class Await {
 
 		$rec = $runtime->runAsync($do, $env);
 
-		yield AwaitSignal::SIG_SET_RECEIPT;
-		yield $rec;
-
-		yield from $rec->yieldWait();
+		yield AwaitSignal::SIG_NOTIFIED;
+		yield static fn($notifier) => $rec->setNotifier($notifier);
 
 		yield AwaitSignal::SIG_EXCEPTION;
 		yield [$rec->getCallTrace(), $rec->getError()];

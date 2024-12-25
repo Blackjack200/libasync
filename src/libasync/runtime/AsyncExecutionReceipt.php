@@ -18,6 +18,7 @@ class AsyncExecutionReceipt {
 	private bool $finished = false;
 	/** @var string[] */
 	protected array $callTrace;
+	protected ?\Closure $notifier = null;
 
 	/**
 	 * @return T
@@ -44,6 +45,12 @@ class AsyncExecutionReceipt {
 
 	private function setFinished() : void {
 		$this->finished = true;
+		$this->tryNotify();
+	}
+
+	public function setNotifier(?\Closure $notifier) : void {
+		$this->notifier = $notifier;
+		$this->tryNotify();
 	}
 
 	public function setResult(mixed $result) : void {
@@ -62,6 +69,13 @@ class AsyncExecutionReceipt {
 	public function yieldWait() : Generator {
 		while (!$this->isFinished()) {
 			yield AwaitSignal::SIG_WAIT;
+		}
+	}
+
+	private function tryNotify() : void {
+		if ($this->finished && $this->notifier !== null) {
+			($this->notifier)();
+			$this->notifier = null;
 		}
 	}
 }
