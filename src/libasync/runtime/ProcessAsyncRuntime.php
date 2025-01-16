@@ -7,7 +7,6 @@ use Composer\Autoload\ClassLoader;
 use Exception;
 use libasync\await\Await;
 use libasync\utils\ClosureUtils;
-use Opis\Closure\SerializableClosure;
 use pocketmine\Server;
 use pocketmine\utils\Utils;
 use RuntimeException;
@@ -27,10 +26,8 @@ class ProcessAsyncRuntime implements AsyncRuntime {
 		$rec->setCallTrace(Utils::printableCurrentTrace());
 
 		try {
-			ob_start();
-			$serializedClosure = igbinary_serialize(new SerializableClosure($closure));
-			$envData = $env ? igbinary_serialize([new SerializableClosure($env->argsCtor), new SerializableClosure($env->argsDtor)]) : null;
-			ob_end_clean();
+			$serializedClosure = \Opis\Closure\serialize($closure);
+			$envData = $env ? igbinary_serialize([\Opis\Closure\serialize($env->argsCtor), \Opis\Closure\serialize($env->argsDtor)]) : null;
 		} catch (Exception $e) {
 			throw new RuntimeException("Failed to serialize closure or environment data: " . $e->getMessage());
 		}

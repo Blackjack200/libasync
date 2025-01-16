@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 use libasync\exception\ExecutionExceptionWrapper;
 use libasync\runtime\AsyncExecutionEnvironment;
-use Opis\Closure\SerializableClosure;
 use pocketmine\thread\ThreadSafeClassLoader;
 use pocketmine\utils\Utils;
 
@@ -48,8 +47,8 @@ try {
 
 	$loader->register();
 
-	$closure = igbinary_unserialize(Utils::assumeNotFalse(base64_decode($argv[2]), "Invalid closure data provided."));
-	if (!$closure instanceof SerializableClosure) {
+	$closure = \Opis\Closure\unserialize(Utils::assumeNotFalse(base64_decode($argv[2]), "Invalid closure data provided."), null);
+	if (!is_callable($closure)) {
 		throw new RuntimeException("Invalid closure deserialized.");
 	}
 
