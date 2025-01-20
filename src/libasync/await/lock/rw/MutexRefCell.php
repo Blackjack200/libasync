@@ -28,7 +28,10 @@ class MutexRefCell {
 	public function set(Closure $func) {
 		$w = $this->lock->write();
 		yield from $w->lock();
-		$r = yield from Await::f2c(fn() => $func(fn($v) => $this->value = $v, fn() => $this->value));
+		$r = yield from Await::f2c(fn() => $func(function($v) {
+			$this->value = $v;
+			$this->lastWrite = $v;
+		}, fn() => $this->value));
 		$w->unlock();
 		return $r;
 	}
