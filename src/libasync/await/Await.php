@@ -57,8 +57,9 @@ final class Await {
 	public static function f2c(Closure $f) : Generator {
 		$v = $f();
 		if ($v instanceof Generator) {
-			yield from $v;
+			return yield from $v;
 		}
+		return $v;
 	}
 
 	/**
