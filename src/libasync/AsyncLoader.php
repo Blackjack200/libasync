@@ -7,7 +7,6 @@ use libasync\await\Coroutine;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncPoolRuntime;
 use libasync\runtime\AsyncRuntime;
-use libasync\runtime\ProcessAsyncRuntime;
 use libasync\utils\ThreadSafePrefixedLogger;
 use pocketmine\plugin\PluginBase;
 use pocketmine\scheduler\AsyncPool;
