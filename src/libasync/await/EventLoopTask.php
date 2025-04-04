@@ -32,12 +32,12 @@ class EventLoopTask {
 				$logger->error("Task timeout handler failed: " . $e->getMessage());
 				$logger->logException($e);
 			}
-			($this->cancelTask)();
+			$this->cancel();
 			return;
 		}
 
 		try {
-			($this->task)($this->cancelTask, $this->changeToWaiting, $this->setTimeout(...), $this->setOnTimeout(...));
+			($this->task)($this->cancel(...), $this->changeToWaiting, $this->setTimeout(...), $this->setOnTimeout(...));
 		} catch (Throwable $e) {
 			$logger->error("Task execution failed: " . $e->getMessage());
 			$logger->logException($e);
@@ -55,5 +55,6 @@ class EventLoopTask {
 
 	public function cancel() : void {
 		($this->cancelTask)();
+		unset($this->task, $this->cancelTask, $this->changeToWaiting, $this->onTimeout);
 	}
 }

@@ -15,7 +15,6 @@ use pocketmine\thread\ThreadCrashInfoFrame;
 use pocketmine\timings\TimingsHandler;
 use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
-use RuntimeException;
 use Throwable;
 
 class Coroutine {
@@ -32,9 +31,9 @@ class Coroutine {
 	private EventLoopTask $task;
 
 	public function __construct(
-		private readonly Generator $generator,
-		private readonly ?Closure $errorHandler,
-		private readonly bool     $joined
+		private Generator $generator,
+		private ?Closure  $errorHandler,
+		private bool      $joined
 	) {
 		$this->callTrace = PMMPUtils::printableCurrentTrace(self::SKIP_FRAMES);
 		$this->name = $this->determineCallerName();
@@ -149,11 +148,16 @@ class Coroutine {
 	}
 
 	private function terminate(Closure $break) : void {
+		if (!isset($this->generator)) {
+			return;
+		}
 		unset(self::$joinedCoroutine[spl_object_id($this)]);
 
 		foreach ($this->deferHandlers as $defer) {
 			$defer();
 		}
+
+		unset($this->task, $this->generator, $this->deferHandlers, $this->errorHandler, $this->trapHandlers);
 
 		$break();
 	}
