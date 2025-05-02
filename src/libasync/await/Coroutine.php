@@ -83,8 +83,8 @@ class Coroutine {
 					$this->terminate($break);
 				}
 			} catch (Throwable $thr) {
-				$this->terminate($break);
 				$this->handleException($thr);
+				$this->terminate($break);
 			} finally {
 				self::$RUNNING = null;
 				$timings->stopTiming();
