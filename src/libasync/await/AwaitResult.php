@@ -32,19 +32,26 @@ class AwaitResult {
 	}
 
 	public function __destruct() {
-		if (!$this->errorHandled) {
-			if (!PRODUCTION) {
-				GlobalLogger::get()->error(
-					"\n--- Await Start ---\n" .
-					implode("\n", $this->stackTrace) .
-					"\n--- End of exception information ---"
-				);
-			}
-			GlobalAsyncRuntime::getLoop()->add(function($break) : void {
-				(new self($this->createCoroutine, $this->onCreation))->panic();
-				$break();
-			});
+		if ($this->errorHandled) {
+			return;
 		}
+
+		$stackTrace = $this->stackTrace;
+		$createCoroutine = $this->createCoroutine;
+		$onCreation = $this->onCreation;
+
+		if (!PRODUCTION) {
+			GlobalLogger::get()->error(
+				"\n--- Await Start ---\n" .
+				implode("\n", $stackTrace) .
+				"\n--- End of exception information ---"
+			);
+		}
+
+		GlobalAsyncRuntime::getLoop()->add(static function($break) use ($createCoroutine, $onCreation) : void {
+			(new self($createCoroutine, $onCreation))->panic();
+			$break();
+		});
 	}
 
 	/**

@@ -64,7 +64,11 @@ namespace libasync {
 		if (Coroutine::$RUNNING === null) {
 			throw new \RuntimeException("no coroutine running in this context");
 		}
-		Coroutine::$RUNNING->getTask()->setTimeout($second * 1000);
+		$task = Coroutine::$RUNNING->getTask();
+		if ($task === null) {
+			throw new \RuntimeException("coroutine task no longer available");
+		}
+		$task->setTimeout($second * 1000);
 	}
 
 	function delay(Closure $func, int $tick = 0) : AwaitResult {

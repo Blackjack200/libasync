@@ -16,6 +16,7 @@ use pocketmine\timings\TimingsHandler;
 use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils as PMMPUtils;
 use Throwable;
+use WeakReference;
 
 class Coroutine {
 	private const SKIP_FRAMES = 3;
@@ -26,9 +27,9 @@ class Coroutine {
 	private readonly string $name;
 	/** @var (Closure():bool)[] */
 	private array $trapHandlers = [];
-	/** @var (Closure():void)[] */
-	private array $deferHandlers = [];
-	private EventLoopTask $task;
+    /** @var (Closure():void)[] */
+    private array $deferHandlers = [];
+    private ?WeakReference $taskRef = null;
 
 	public function __construct(
 		private Generator $generator,
@@ -74,25 +75,43 @@ class Coroutine {
 		$timings = AsyncTimings::getByName($this->name);
 		$resumeTimings = AsyncTimings::getResumeByName($this->name);
 
-		$this->task = $loop->add(function(Closure $break, Closure $wakeupMode) use ($timings, $resumeTimings) : void {
-			try {
-				self::$RUNNING = $this;
-				$timings->startTiming();
+        $selfRef = WeakReference::create($this);
 
-				if ($this->executeInternal($timings, $resumeTimings, $wakeupMode)) {
-					$this->terminate($break);
-				}
-			} catch (Throwable $thr) {
-				$this->handleException($thr);
-				$this->terminate($break);
-			} finally {
-				self::$RUNNING = null;
-				$timings->stopTiming();
-			}
-		});
+        $task = $loop->add(function(Closure $break, Closure $wakeupMode) use ($timings, $resumeTimings, $selfRef) : void {
+            $self = $selfRef->get();
+            if ($self === null) {
+                $break();
+                return;
+            }
+            $self->runLoopIteration($break, $wakeupMode, $timings, $resumeTimings);
+        });
 
-		$this->task->setOnTimeout($this->handleTimeout(...));
-	}
+        $task->setOnTimeout(static function(float $exceed) use ($selfRef) : void {
+            $self = $selfRef->get();
+            if ($self !== null) {
+                $self->handleTimeout($exceed);
+            }
+        });
+
+        $this->taskRef = WeakReference::create($task);
+    }
+
+    private function runLoopIteration(Closure $break, Closure $wakeupMode, TimingsHandler $timings, TimingsHandler $resumeTimings) : void {
+        try {
+            self::$RUNNING = $this;
+            $timings->startTiming();
+
+            if ($this->executeInternal($timings, $resumeTimings, $wakeupMode)) {
+                $this->terminate($break);
+            }
+        } catch (Throwable $thr) {
+            $this->handleException($thr);
+            $this->terminate($break);
+        } finally {
+            self::$RUNNING = null;
+            $timings->stopTiming();
+        }
+    }
 
 	private function executeInternal(TimingsHandler $timings, TimingsHandler $resumeTimings, Closure $wakeupMode) : bool {
 		$gen = $this->generator;
@@ -157,10 +176,11 @@ class Coroutine {
 			$defer();
 		}
 
-		unset($this->task, $this->generator, $this->deferHandlers, $this->errorHandler, $this->trapHandlers);
+        $this->taskRef = null;
+        unset($this->generator, $this->deferHandlers, $this->errorHandler, $this->trapHandlers);
 
-		$break();
-	}
+        $break();
+    }
 
 	private function handleException(Throwable $thr) : void {
 		if ($this->errorHandler !== null) {
@@ -193,7 +213,10 @@ class Coroutine {
 		Server::getInstance()->crashDump();
 	}
 
-	public function getTask() : EventLoopTask { return $this->task; }
+    public function getTask() : ?EventLoopTask {
+        $task = $this->taskRef?->get();
+        return $task instanceof EventLoopTask ? $task : null;
+    }
 
 	private function handleTimeout(float $exceed) : void {
 		unset(self::$joinedCoroutine[spl_object_id($this)]);
