@@ -4,6 +4,8 @@ namespace libasync\utils;
 
 use Closure;
 use InvalidArgumentException;
+use Opis\Closure\ReflectionClosure;
+use Opis\Closure\Serializer;
 use pmmp\thread\ThreadSafe;
 use pmmp\thread\ThreadSafeArray;
 use ReflectionFunction;
@@ -11,6 +13,7 @@ use ReflectionNamedType;
 use ReflectionUnionType;
 use const bootstrap\PRODUCTION;
 
+Serializer::init();
 final class ClosureUtils {
 	private function __construct() { }
 
@@ -101,5 +104,42 @@ final class ClosureUtils {
 			$arr[] = $t->getName();
 		}
 		return $arr;
+	}
+
+	public static function noCyclic(Closure $closure, object $root) : void {
+		$ref = new ReflectionClosure($closure);
+
+		if ($ref->getClosureThis() === $root) {
+			throw new InvalidArgumentException("closure directly scoped to root");
+		}
+
+		foreach ($ref->getUseVariables() as $name => $value) {
+			if (self::containsObject($value, $root)) {
+				throw new InvalidArgumentException("closure used cyclic reference on $name");
+			}
+		}
+	}
+
+	private static function containsObject(mixed $value, object $root, array &$seen = []) : bool {
+		if (is_object($value)) {
+			$oid = spl_object_id($value);
+			if (isset($seen[$oid])) {
+				return false;
+			}
+			$seen[$oid] = true;
+
+			if ($value === $root) {
+				return true;
+			}
+
+			if (array_any((array) $value, static fn($prop) => self::containsObject($prop, $root, $seen))) {
+				return true;
+			}
+		} else if (is_array($value)) {
+			if (array_any($value, static fn($v) => self::containsObject($v, $root, $seen))) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

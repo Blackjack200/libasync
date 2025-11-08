@@ -36,6 +36,7 @@ class AsyncLoader extends PluginBase {
 		}
 		require_once $autoload;
 		require_once __DIR__ . '/functions.php';
+		require_once __DIR__ . '/../phantom/functions.php';
 
 		$lp = new ClassicEventLoop();
 		GlobalAsyncRuntime::setLoop($lp);

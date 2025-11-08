@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace libasync\await;
 
 use Closure;
+use libasync\utils\ClosureUtils;
 use SplQueue;
+use function phantom\weak;
 
 class ClassicEventLoop implements EventLoop {
 	/** @var array<int, EventLoopTask> */
@@ -37,15 +39,19 @@ class ClassicEventLoop implements EventLoop {
 
 	public function add(Closure $c, int $timeoutMicrosecond = PHP_INT_MAX, ?Closure $onTimeout = null) : EventLoopTask {
 		$id = spl_object_id($c);
+		$weak = weak($this);
+		if (!\bootstrap\PRODUCTION) {
+			ClosureUtils::noCyclic($c, $this);
+		}
 		$task = new EventLoopTask(
 			$c,
-			function() use ($id) {
-				unset($this->polling[$id], $this->waiting[$id]);
+			static function() use ($weak, $id) {
+				unset($weak->_ref()->polling[$id], $weak->_ref()->waiting[$id]);
 			},
-			function() use ($id) : Closure {
-				$this->waiting[$id] = $this->polling[$id];
-				unset($this->polling[$id]);
-				return fn() => $this->wakeupQueue->enqueue($id);
+			static function() use ($weak, $id) : Closure {
+				$weak->_ref()->waiting[$id] = $weak->_ref()->polling[$id];
+				unset($weak->_ref()->polling[$id]);
+				return static fn() => $weak->_ref()->wakeupQueue->enqueue($id);
 			},
 			$timeoutMicrosecond, $onTimeout
 		);

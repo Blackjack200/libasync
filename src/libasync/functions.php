@@ -6,15 +6,18 @@ namespace libasync {
 	use Generator;
 	use libasync\await\Await;
 	use libasync\await\AwaitResult;
-	use libasync\await\AwaitSignal;
 	use libasync\await\Coroutine;
 	use libasync\await\EventLoop;
 	use libasync\exception\ExecutionException;
 	use libasync\runtime\AsyncExecutionEnvironment;
 	use libasync\runtime\AsyncRuntime;
+	use libasync\utils\ClosureUtils;
 	use pocketmine\player\Player;
 
 	function async(Closure|Generator $block, ?EventLoop $loop = null) : AwaitResult {
+		if ($block instanceof Closure && $loop !== null) {
+			ClosureUtils::noCyclic($block, $loop);
+		}
 		return Await::do($block, $loop);
 	}
 

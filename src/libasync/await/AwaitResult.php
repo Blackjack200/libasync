@@ -6,6 +6,7 @@ use Closure;
 use GlobalLogger;
 use libasync\exception\ExecutionException;
 use libasync\global\GlobalAsyncRuntime;
+use libasync\utils\ClosureUtils;
 use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
 use pocketmine\utils\TextFormat;
@@ -27,6 +28,11 @@ class AwaitResult {
 		private readonly Closure $createCoroutine,
 		private readonly Closure $onCreation
 	) {
+		if (!PRODUCTION) {
+			ClosureUtils::noCyclic($this->createCoroutine, $this->onCreation);
+			ClosureUtils::noCyclic($this->createCoroutine, $this);
+			ClosureUtils::noCyclic($this->onCreation, $this);
+		}
 		//skip __construct
 		$this->stackTrace = Utils::printableCurrentTrace(1);
 	}
