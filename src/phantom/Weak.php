@@ -5,6 +5,82 @@ namespace phantom;
 use WeakReference;
 
 /**
+ * Weak facade around an object, forwarding operations only if the target is alive.
+ *
+ * Internally backed by {@see WeakReference}. All property access, method calls,
+ * invocation, string casting, and debug output are forwarded to the underlying
+ * object.
+ *
+ * If the object has already been garbage-collected, all interactions will throw
+ * a {@see LifetimeError}.
+ *
+ * This class **does not** extend object lifetime and **does not** implement manual
+ * GC. It merely serves as a checked-lifetime wrapper and research tool.
+ *
+ * # Property/method forwarding
+ *
+ * ```
+ *   class Foo { public int $value = 42; public function hi() { return "hi"; } }
+ *   $foo = new Foo();
+ *   $weak = weak($foo);
+ *   echo $weak->value;    // 42
+ *   echo $weak->hi();     // "hi"
+ * ```
+ *
+ * # Access raw referenced object (when explicit typing is preferred)
+ *
+ * ```
+ *   /** @var Foo $bar *\/
+ *   $bar = $weak->_ref();
+ *   echo $bar->value;
+ * ```
+ *
+ * # Invocation forwarding
+ *
+ * ```
+ *   class Handler { public function __invoke($x) { return $x * 2; } }
+ *   $h = weak(new Handler());
+ *   echo $h(5); // 10
+ * ```
+ *
+ * # Private property access (supported via closure rebinding)
+ *
+ * ```
+ *   class Secret { private int $x = 99; private function get() { return $this->x; } }
+ *   $s = weak(new Secret());
+ *   echo $s->get(); // 99
+ * ```
+ *
+ * # LifetimeError after GC
+ *
+ * ```
+ *   $obj = new Foo();
+ *   $w = weak($obj);
+ *   unset($obj);
+ *   gc_collect_cycles();
+ *   $w->value; // throws LifetimeError
+ * ```
+ *
+ * # Detecting liveness manually
+ *
+ * ```
+ *   try {
+ *       $alive = $w->_ref();
+ *   } catch (LifetimeError) {
+ *       // object is dead
+ *   }
+ * ```
+ *
+ * Serialization, static reconstruction, and wakeup are intentionally forbidden.
+ *
+ * The following methods always throw BadMethodCallException:
+ * - __serialize
+ * - __unserialize
+ * - __sleep
+ * - __wakeup
+ * - __set_state
+ * - __callStatic
+ *
  * @template T of object
  */
 final readonly class Weak {

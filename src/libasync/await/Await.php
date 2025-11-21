@@ -7,7 +7,6 @@ use Closure;
 use DaveRandom\CallbackValidator\CallbackType;
 use DaveRandom\CallbackValidator\ReturnType;
 use Generator;
-use libasync\exception\ExecutionException;
 use libasync\global\GlobalAsyncRuntime;
 use libasync\runtime\AsyncExecutionEnvironment;
 use libasync\runtime\AsyncRuntime;
@@ -137,7 +136,7 @@ final class Await {
 	 * @param AsyncRuntime|null $runtime The runtime environment to use.
 	 * @param AsyncExecutionEnvironment|null $env The execution environment to use.
 	 * @return Generator<void,mixed,void,T>|T The result of the asynchronous execution.
-	 * @throws ExecutionException If an error occurs during execution.
+	 * @generator-throw ExecutionException If execution fails.
 	 */
 	public static function threadify(Closure $do, ?AsyncRuntime $runtime = null, ?AsyncExecutionEnvironment $env = null) {
 		$runtime ??= GlobalAsyncRuntime::gerThreadedRuntime();

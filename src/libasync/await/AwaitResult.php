@@ -15,6 +15,48 @@ use prokits\utils\StringFormat;
 use Throwable;
 use const bootstrap\PRODUCTION;
 
+/**
+ * AwaitResult wraps the result of an asynchronous coroutine execution.
+ *
+ * Provides mechanisms to:
+ * - Handle errors via callbacks
+ * - Log errors to PMMP GlobalLogger
+ * - Notify command senders about async errors
+ * - Optionally "join" or drop coroutine execution
+ *
+ * Errors are automatically handled in destructor if unhandled in production
+ * environment, providing stack trace logging and safety for forgotten awaits.
+ *
+ * ### Usage example
+ *
+ * ```
+ * $awaitResult = new AwaitResult(
+ *     static fn(?Closure $errorHandler, bool $joined) => $coroutine,
+ *     static fn($coroutine) => $onCreationCallback
+ * );
+ *
+ * // Handle errors manually
+ * $awaitResult->error(static fn(Throwable $thr) => echo "Async failed: $thr");
+ *
+ * // Log errors automatically
+ * $awaitResult->logError();
+ *
+ * // Notify a command sender on error
+ * $awaitResult->logErrorWithSender($player);
+ *
+ * // Control join behavior
+ * $awaitResult->join();      // default, waits for coroutine
+ * $awaitResult->mayDrop();   // allow coroutine to run without joining
+ * ```
+ *
+ * ### Notes
+ *
+ * - `join()` indicates that the caller expects to wait for the coroutine result
+ * - `mayDrop()` allows the coroutine to continue without explicit waiting
+ * - Destructor will schedule unhandled errors to runtime loop for logging
+ *
+ * @internal Relies on `GlobalAsyncRuntime` loop for deferred error handling
+ */
 class AwaitResult {
 	protected bool $join = true;
 	private array $stackTrace;

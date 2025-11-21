@@ -106,6 +106,44 @@ final class ClosureUtils {
 		return $arr;
 	}
 
+	/**
+	 * Ensures that a closure does not hold a cyclic reference to a given root object.
+	 *
+	 * This function inspects the closure and its captured variables to detect any direct
+	 * or indirect references to the specified `$root` object. If such a reference is found,
+	 * an exception is thrown to prevent cyclic memory retention.
+	 *
+	 * # Examples
+	 *
+	 * ```
+	 * $root = new stdClass();
+	 *
+	 * // Example 1: safe closure, does not reference $root
+	 * $closure1 = static function() {
+	 *     echo "hello";
+	 * };
+	 * ClosureUtils::noCyclic($closure1, $root); // ✅ no exception
+	 *
+	 * // Example 2: unsafe closure, captures $root directly
+	 * $closure2 = static function() use ($root) {
+	 *     echo $root->property;
+	 * };
+	 * ClosureUtils::noCyclic($closure2, $root); // ❌ throws InvalidArgumentException
+	 *
+	 * // Example 3: unsafe closure, $root referenced indirectly via another object
+	 * $obj = new stdClass();
+	 * $obj->ref = $root;
+	 * $closure3 = static function() use ($obj) {
+	 *     echo $obj->ref->property;
+	 * };
+	 * ClosureUtils::noCyclic($closure3, $root); // ❌ throws InvalidArgumentException
+	 * ```
+	 *
+	 * @param Closure $closure The closure to check for cyclic references.
+	 * @param object $root The object that should not be referenced by the closure.
+	 * @return void
+	 * @throws InvalidArgumentException If the closure directly or indirectly references $root.
+	 */
 	public static function noCyclic(Closure $closure, object $root) : void {
 		$ref = new ReflectionClosure($closure);
 

@@ -9,7 +9,49 @@ use pocketmine\utils\Utils;
 use Throwable;
 use const bootstrap\PRODUCTION;
 
+/**
+ * AsyncExecutionEnvironment provides a thread-safe execution context for asynchronous
+ * operations, managing argument creation and destruction automatically.
+ *
+ * Each environment has:
+ * - `$argsCtor`: a closure to create resources/arguments before execution
+ * - `$argsDtor`: a closure to destroy resources/arguments after execution
+ *
+ * The `run()` method ensures resources are cleaned up even if the executed closure
+ * throws an exception.
+ *
+ * Example usage:
+ * ```php
+ * use libasync\runtime\AsyncExecutionEnvironment;
+ *
+ * $env = new AsyncExecutionEnvironment(
+ *     argsCtor: fn() => [new Resource()],
+ *     argsDtor: fn($res) => $res->close()
+ * );
+ *
+ * $result = $env->run(function($resource, $injected) {
+ *     // do something with $resource
+ *     return $resource->compute($injected);
+ * }, [$someInjectedValue]);
+ * ```
+ *
+ * Factory helper:
+ * ```php
+ * $simpleEnv = AsyncExecutionEnvironment::simple(
+ *     fn() => new Resource(),
+ *     fn($res) => $res->close()
+ * );
+ * ```
+ *
+ * Thread-safety:
+ * This class extends `pmmp\thread\ThreadSafe`, so it can be safely shared
+ * across PMMP threads.
+ */
 class AsyncExecutionEnvironment extends ThreadSafe {
+	/**
+	 * @param Closure():array $argsCtor Closure that returns an array of arguments/resources
+	 * @param Closure(mixed...):void $argsDtor Closure to destroy the arguments/resources
+	 */
 	public function __construct(
 		public readonly Closure $argsCtor,
 		public readonly Closure $argsDtor,
@@ -20,10 +62,30 @@ class AsyncExecutionEnvironment extends ThreadSafe {
 		}
 	}
 
+	/**
+	 * Create arguments/resources for execution.
+	 *
+	 * @return array The array of arguments
+	 */
 	public function createArgs() : array { return ($this->argsCtor)(); }
 
+	/**
+	 * Destroy previously created arguments/resources.
+	 *
+	 * @param array $args Arguments/resources returned from `createArgs()`
+	 */
 	public function destroyArgs(array $args) : void { ($this->argsDtor)(...$args); }
 
+	/**
+	 * Run a closure inside this execution environment.
+	 *
+	 * Automatically creates and destroys resources.
+	 *
+	 * @param Closure $f Closure to execute. Arguments created by argsCtor are prepended.
+	 * @param array $injected Additional arguments to pass to $f
+	 * @return mixed The return value of the closure
+	 * @throws Throwable Re-throws any exception thrown by the closure
+	 */
 	public function run(Closure $f, array $injected = []) {
 		$args = $this->createArgs();
 		try {
@@ -36,6 +98,13 @@ class AsyncExecutionEnvironment extends ThreadSafe {
 		}
 	}
 
+	/**
+	 * Helper to create a simple environment with a single resource.
+	 *
+	 * @param Closure():mixed $new Closure to create a resource
+	 * @param Closure(mixed):void $free Closure to free the resource
+	 * @return self
+	 */
 	public static function simple(Closure $new, Closure $free) : self {
 		return new AsyncExecutionEnvironment(
 			static fn() : array => [$new()],
